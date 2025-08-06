@@ -6,8 +6,8 @@ import { ThemeProvider } from '../theme-context'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Personal Link Page',
-  description: 'A beautiful personal link page with animated background',
+  title: 'accendium.',
+  description: 'developer.',
 }
 
 export default function RootLayout({
