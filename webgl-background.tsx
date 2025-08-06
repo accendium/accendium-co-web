@@ -20,7 +20,7 @@ export default function WebGLBackground() {
     if (!canvas) return
 
     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
-    if (!gl) {
+    if (!gl || !(gl instanceof WebGLRenderingContext)) {
       console.warn('WebGL not supported, falling back to canvas')
       return
     }

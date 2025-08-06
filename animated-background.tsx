@@ -6,7 +6,7 @@ export default function AnimatedBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const mouseRef = useRef({ x: 0, y: 0 })
   const dotsRef = useRef<Array<{ x: number; y: number; baseSize: number; currentSize: number; opacity: number }>>([])
-  const animationRef = useRef<number>()
+  const animationRef = useRef<number>(null)
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     mouseRef.current = { x: e.clientX, y: e.clientY }
