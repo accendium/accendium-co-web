@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { Instagram, Twitter, Linkedin, Github, Globe, Mail } from 'lucide-react'
+import { Instagram, Twitter, Linkedin, Github, Globe, Mail, X } from 'lucide-react'
 import WebGLBackground from './webgl-background'
 import { useTheme } from './theme-context'
 
@@ -11,33 +11,18 @@ export default function Component() {
   
   const links = [
     {
-      name: "Instagram",
-      url: "https://instagram.com/username",
-      icon: Instagram,
-    },
-    {
       name: "Twitter",
-      url: "https://twitter.com/username",
+      url: "https://twitter.com/ccendium",
       icon: Twitter,
     },
     {
-      name: "LinkedIn",
-      url: "https://linkedin.com/in/username",
-      icon: Linkedin,
-    },
-    {
       name: "GitHub",
-      url: "https://github.com/username",
+      url: "https://github.com/accendium",
       icon: Github,
     },
     {
-      name: "Website",
-      url: "https://yourwebsite.com",
-      icon: Globe,
-    },
-    {
       name: "Email",
-      url: "mailto:hello@yourwebsite.com",
+      url: "mailto:contact@accendium.co",
       icon: Mail,
     },
   ]
@@ -63,12 +48,12 @@ export default function Component() {
             {/* Profile Picture */}
             <div className="relative w-[120px] h-[120px] mx-auto mb-6">
               <Image
-                src="/placeholder.svg?height=120&width=120"
+                src="/logo_white.svg"
                 alt="Profile Picture"
                 width={120}
                 height={120}
-                className={`rounded-full border-2 object-cover shadow-lg transition-colors duration-300 ${
-                  isDark ? 'border-white' : 'border-black'
+                className={`rounded-none border-2 object-cover shadow-lg transition-colors duration-300 ${
+                  isDark ? 'border-black' : 'border-black'
                 }`}
               />
             </div>
@@ -77,14 +62,14 @@ export default function Component() {
             <h1 className={`text-2xl font-semibold mb-2 font-sans transition-colors duration-300 ${
               isDark ? 'text-white' : 'text-black'
             }`}>
-              @username
+              accendium.
             </h1>
             
             {/* Bio/Tagline */}
             <p className={`text-sm font-sans transition-colors duration-300 ${
               isDark ? 'text-white/70' : 'text-black/70'
             }`}>
-              Creative developer & designer
+              developer.
             </p>
           </div>
 
