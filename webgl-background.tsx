@@ -25,57 +25,27 @@ export default function WebGLBackground() {
       return
     }
 
-    // Enhanced vertex shader with sine wave ripple effect and click ripples
+    // Enhanced vertex shader with smoothed influence attribute
     const vertexShaderSource = `
       attribute vec2 a_position;
       attribute float a_size;
       attribute float a_opacity;
+      attribute float a_influence; // smoothed per-dot influence provided by CPU
       
       uniform vec2 u_resolution;
-      uniform vec2 u_mouse;
-      uniform float u_time;
-      uniform vec4 u_ripples[10]; // x, y, startTime, maxRadius for up to 10 ripples
-      uniform int u_rippleCount;
+      uniform vec2 u_mouse; // kept for compatibility (unused)
+      uniform float u_time; // kept for compatibility (unused)
+      uniform vec4 u_ripples[10]; // kept for compatibility (unused)
+      uniform int u_rippleCount; // kept for compatibility (unused)
       
       varying float v_opacity;
       
       void main() {
         vec2 position = a_position / u_resolution * 2.0 - 1.0;
         position.y = -position.y;
-        
-        // Cursor interaction effect
-        float mouseDistance = length(a_position - u_mouse);
-        float mouseInfluence = max(0.0, 1.0 - mouseDistance / 150.0);
-        
-        // Click ripple effects
-        float rippleInfluence = 0.0;
-        for (int i = 0; i < 10; i++) {
-          if (i >= u_rippleCount) break;
-          
-          vec4 ripple = u_ripples[i];
-          vec2 ripplePos = ripple.xy;
-          float rippleStartTime = ripple.z;
-          float rippleMaxRadius = ripple.w;
-          
-          float rippleAge = u_time - rippleStartTime;
-          if (rippleAge > 0.0 && rippleAge < 2.0) { // 2 second ripple duration
-            float rippleRadius = rippleAge * rippleMaxRadius * 0.5; // Expand over time
-            float distanceToRipple = length(a_position - ripplePos);
-            
-            // Create ring effect - strongest at the expanding edge
-            float ringWidth = 50.0;
-            float ringDistance = abs(distanceToRipple - rippleRadius);
-            if (ringDistance < ringWidth) {
-              float ringStrength = (1.0 - ringDistance / ringWidth);
-              float fadeOut = 1.0 - (rippleAge / 2.0); // Fade over 2 seconds
-              rippleInfluence += ringStrength * fadeOut * 0.8;
-            }
-          }
-        }
-        
-        // Combine both effects additively
-        float totalInfluence = mouseInfluence + rippleInfluence;
-        float size = a_size + totalInfluence * 4.0;
+        // Use smoothed influence provided by CPU
+        float totalInfluence = a_influence;
+        float size = a_size + totalInfluence * 7.0;
         
         gl_Position = vec4(position, 0.0, 1.0);
         gl_PointSize = size;
@@ -144,6 +114,7 @@ export default function WebGLBackground() {
     const positionLocation = gl.getAttribLocation(program, 'a_position')
     const sizeLocation = gl.getAttribLocation(program, 'a_size')
     const opacityLocation = gl.getAttribLocation(program, 'a_opacity')
+    const influenceLocation = gl.getAttribLocation(program, 'a_influence')
     const resolutionLocation = gl.getUniformLocation(program, 'u_resolution')
     const mouseLocation = gl.getUniformLocation(program, 'u_mouse')
     const colorLocation = gl.getUniformLocation(program, 'u_color')
@@ -154,6 +125,8 @@ export default function WebGLBackground() {
     // Create dots data with proportional density
     const dotSize = 3
     const dots: number[] = []
+    // Per-dot smoothed influence state (declared before resizeCanvas uses it)
+    let smoothedInfluences: number[] = []
     
     const resizeCanvas = () => {
       const dpr = window.devicePixelRatio || 1
@@ -188,6 +161,10 @@ export default function WebGLBackground() {
           dots.push(x, y, dotSize, 0.3) // x, y, size, opacity
         }
       }
+
+      // Align smoothed influences to dot count after rebuild
+      const numDots = Math.floor(dots.length / 4)
+      smoothedInfluences = new Array(numDots).fill(0)
     }
 
     resizeCanvas()
@@ -196,10 +173,16 @@ export default function WebGLBackground() {
     const positionBuffer = gl.createBuffer()
     const sizeBuffer = gl.createBuffer()
     const opacityBuffer = gl.createBuffer()
+    const influenceBuffer = gl.createBuffer()
 
     let mouseX = 0
     let mouseY = 0
     let startTime = Date.now()
+    let lastTimeSec = 0
+
+    // Animation smoothing configuration (milliseconds)
+    const influenceLerpInMs = 20 // increase speed
+    const influenceLerpOutMs = 300 // decrease speed
     
     const resetMouse = () => {
       // Place mouse far away so influence is zero
@@ -251,42 +234,42 @@ export default function WebGLBackground() {
     const animate = () => {
       if (!gl || !program) return
 
-      const currentTime = (Date.now() - startTime) / 1000
+      const nowSec = (Date.now() - startTime) / 1000
 
       // Clean up old ripples (older than 2 seconds)
       ripplesRef.current = ripplesRef.current.filter(ripple => 
-        currentTime - ripple.startTime < 2.0
+        nowSec - ripple.startTime < 2.0
       )
 
       gl.clearColor(0, 0, 0, 0)
       gl.clear(gl.COLOR_BUFFER_BIT)
       gl.useProgram(program)
 
-      // Set uniforms
-      gl.uniform2f(resolutionLocation, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1))
-      gl.uniform2f(mouseLocation, mouseX, mouseY)
-      gl.uniform1f(timeLocation, currentTime)
-      
-      // Set ripples uniform
-      const rippleData = new Float32Array(40) // 10 ripples * 4 values each
-      for (let i = 0; i < Math.min(ripplesRef.current.length, 10); i++) {
-        const ripple = ripplesRef.current[i]
-        rippleData[i * 4] = ripple.x
-        rippleData[i * 4 + 1] = ripple.y
-        rippleData[i * 4 + 2] = ripple.startTime
-        rippleData[i * 4 + 3] = ripple.maxRadius
+      // Set uniforms (guard for null in case optimizer removes them)
+      if (resolutionLocation) gl.uniform2f(resolutionLocation, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1))
+      if (mouseLocation) gl.uniform2f(mouseLocation, mouseX, mouseY)
+      if (timeLocation) gl.uniform1f(timeLocation, nowSec)
+      if (ripplesLocation) {
+        const rippleData = new Float32Array(40) // 10 ripples * 4 values each
+        for (let i = 0; i < Math.min(ripplesRef.current.length, 10); i++) {
+          const ripple = ripplesRef.current[i]
+          rippleData[i * 4] = ripple.x
+          rippleData[i * 4 + 1] = ripple.y
+          rippleData[i * 4 + 2] = ripple.startTime
+          rippleData[i * 4 + 3] = ripple.maxRadius
+        }
+        gl.uniform4fv(ripplesLocation, rippleData)
       }
-      gl.uniform4fv(ripplesLocation, rippleData)
-      gl.uniform1i(rippleCountLocation, ripplesRef.current.length)
+      if (rippleCountLocation) gl.uniform1i(rippleCountLocation, ripplesRef.current.length)
       
       // Set color based on theme
       const color = theme === 'dark' ? [1.0, 1.0, 1.0] : [0.0, 0.0, 0.0]
       gl.uniform3f(colorLocation, color[0], color[1], color[2])
 
       // Set up position buffer
-      const positions = []
-      const sizes = []
-      const opacities = []
+      const positions: number[] = []
+      const sizes: number[] = []
+      const opacities: number[] = []
       
       for (let i = 0; i < dots.length; i += 4) {
         positions.push(dots[i], dots[i + 1])
@@ -311,6 +294,72 @@ export default function WebGLBackground() {
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(opacities), gl.STATIC_DRAW)
       gl.enableVertexAttribArray(opacityLocation)
       gl.vertexAttribPointer(opacityLocation, 1, gl.FLOAT, false, 0, 0)
+
+      // Compute smoothed influences
+      const numDots = positions.length / 2
+      const mouseRadius = 150
+      const ringWidth = 50
+      const rippleDuration = 2.0
+      const ringScale = 0.5
+      const rippleStrength = 0.8
+
+      const currentSec = (Date.now() - startTime) / 1000
+      const dt = Math.max(0, currentSec - lastTimeSec)
+      lastTimeSec = currentSec
+
+      const inTau = Math.max(0.001, influenceLerpInMs / 1000)
+      const outTau = Math.max(0.001, influenceLerpOutMs / 1000)
+      const inFactor = 1 - Math.exp(-dt / inTau)
+      const outFactor = 1 - Math.exp(-dt / outTau)
+
+      if (smoothedInfluences.length !== numDots) {
+        smoothedInfluences = new Array(numDots).fill(0)
+      }
+
+      for (let i = 0; i < numDots; i++) {
+        const x = positions[i * 2]
+        const y = positions[i * 2 + 1]
+
+        let influence = 0
+
+        // Mouse influence
+        const dx = mouseX - x
+        const dy = mouseY - y
+        const distSq = dx * dx + dy * dy
+        const mouseRadiusSq = mouseRadius * mouseRadius
+        if (distSq < mouseRadiusSq) {
+          const dist = Math.sqrt(distSq)
+          influence += Math.max(0, 1 - dist / mouseRadius)
+        }
+
+        // Ripple ring influence
+        const rippleCount = Math.min(ripplesRef.current.length, 10)
+        for (let r = 0; r < rippleCount; r++) {
+          const ripple = ripplesRef.current[r]
+          const age = currentSec - ripple.startTime
+          if (age <= 0 || age >= rippleDuration) continue
+          const radius = age * ripple.maxRadius * ringScale
+          const dxr = ripple.x - x
+          const dyr = ripple.y - y
+          const d = Math.sqrt(dxr * dxr + dyr * dyr)
+          const ringDistance = Math.abs(d - radius)
+          if (ringDistance < ringWidth) {
+            const ringStrengthNorm = 1 - ringDistance / ringWidth
+            const fadeOut = 1 - age / rippleDuration
+            influence += ringStrengthNorm * fadeOut * rippleStrength
+          }
+        }
+
+        const current = smoothedInfluences[i] || 0
+        const factor = influence > current ? inFactor : outFactor
+        smoothedInfluences[i] = current + (influence - current) * factor
+      }
+
+      // Influence buffer
+      gl.bindBuffer(gl.ARRAY_BUFFER, influenceBuffer)
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(smoothedInfluences), gl.DYNAMIC_DRAW)
+      gl.enableVertexAttribArray(influenceLocation)
+      gl.vertexAttribPointer(influenceLocation, 1, gl.FLOAT, false, 0, 0)
 
       // Enable blending for transparency
       gl.enable(gl.BLEND)
