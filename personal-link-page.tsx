@@ -43,7 +43,7 @@ export default function Component() {
       
       {/* Main Content Container - Unchanged for visual consistency */}
       <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
-        <div className={`w-full max-w-md mx-auto backdrop-blur-sm rounded-2xl p-8 border shadow-2xl transition-all duration-300 ${
+        <div data-foreground-card className={`w-full max-w-md mx-auto backdrop-blur-sm rounded-2xl p-8 border shadow-2xl transition-all duration-300 ${
           isDark 
             ? 'bg-black/90 border-white/20' 
             : 'bg-white/90 border-black/20'

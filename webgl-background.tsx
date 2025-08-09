@@ -223,6 +223,10 @@ export default function WebGLBackground() {
     }
 
     const handlePointerDown = (e: PointerEvent) => {
+      // Ignore clicks that originate from the foreground card
+      const target = e.target as HTMLElement | null
+      const isForeground = target && (target.closest('[data-foreground-card]') !== null)
+      if (isForeground) return
       const rect = canvas.getBoundingClientRect()
       const clickX = e.clientX - rect.left
       const clickY = e.clientY - rect.top
@@ -321,6 +325,7 @@ export default function WebGLBackground() {
     window.addEventListener('resize', resizeCanvas)
     // Track pointer globally; update highlight only when inside canvas rect
     window.addEventListener('pointermove', handlePointerMove as any, { passive: true } as any)
+    // Listen at the window to capture clicks anywhere, then filter out foreground card clicks
     window.addEventListener('pointerdown', handlePointerDown as any, { passive: true } as any)
     // Reset when leaving the window or tab loses focus
     const handlePointerOut = (e: PointerEvent) => {

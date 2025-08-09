@@ -17,7 +17,7 @@ This is a modern, animated personal link page built with Next.js, TypeScript, an
 
 - [x] Fix: Background dots centering
 - [x] Fix: Mobile touch 'stickiness' (touching and releasing shouldn't continue animating on UI)
-- [ ] Fix: Clicking in foreground card shouldn't trigger background animation (maybe, A/B test this)
+- [x] Fix: Clicking in foreground card shouldn't trigger background animation 
 - [ ] Visual: Add lerping to background animation to make it prettier
 - [ ] Visual: Add glow effect to background dots
 - [ ] Feat: Add pretty melodic sound effect when clicking the background
