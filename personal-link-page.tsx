@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { Instagram, Twitter, Linkedin, Github, Globe, Mail, X } from 'lucide-react'
+import { Instagram, Twitter, Linkedin, Github, Globe, Mail, X, Youtube } from 'lucide-react'
 import WebGLBackground from './webgl-background'
 import { useTheme } from './theme-context'
 
@@ -10,6 +10,11 @@ export default function Component() {
   const { theme } = useTheme()
   
   const links = [
+    {
+      name: "YouTube",
+      url: "https://www.youtube.com/@ccendium",
+      icon: Youtube,
+    },
     {
       name: "Twitter",
       url: "https://twitter.com/ccendium",
