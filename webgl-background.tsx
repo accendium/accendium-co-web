@@ -152,7 +152,7 @@ export default function WebGLBackground() {
     const rippleCountLocation = gl.getUniformLocation(program, 'u_rippleCount')
 
     // Create dots data with proportional density
-    const dotSize = 2
+    const dotSize = 3
     const dots: number[] = []
     
     const resizeCanvas = () => {
@@ -169,12 +169,22 @@ export default function WebGLBackground() {
       // Calculate proportional spacing based on screen width
       // This ensures consistent density across different screen sizes
       const baseWidth = 1200 // Reference width for spacing calculation
-      const spacing = Math.max(30, Math.min(50, (rect.width / baseWidth) * 40))
-      
-      // Recreate dots with proportional spacing
+      const density = 1.1 // >1.0 = more dots, <1.0 = fewer dots
+      const raw = (rect.width / baseWidth) * 40
+      const spacing = Math.max(30, Math.min(50, raw)) / density
+
+      // Center the grid of dots within the canvas
+      const numCols = Math.max(1, Math.floor(rect.width / spacing))
+      const numRows = Math.max(1, Math.floor(rect.height / spacing))
+      const startX = (rect.width - (numCols - 1) * spacing) / 2
+      const startY = (rect.height - (numRows - 1) * spacing) / 2
+
+      // Recreate dots with centered grid
       dots.length = 0
-      for (let x = spacing; x < rect.width; x += spacing) {
-        for (let y = spacing; y < rect.height; y += spacing) {
+      for (let i = 0; i < numCols; i++) {
+        const x = startX + i * spacing
+        for (let j = 0; j < numRows; j++) {
+          const y = startY + j * spacing
           dots.push(x, y, dotSize, 0.3) // x, y, size, opacity
         }
       }

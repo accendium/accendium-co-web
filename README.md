@@ -15,12 +15,17 @@ This is a modern, animated personal link page built with Next.js, TypeScript, an
 
 ## ✅ Todo
 
-- [ ] Fix: Background dots centering
+- [x] Fix: Background dots centering
 - [x] Fix: Mobile touch 'stickiness' (touching and releasing shouldn't continue animating on UI)
 - [ ] Fix: Clicking in foreground card shouldn't trigger background animation (maybe, A/B test this)
 - [ ] Visual: Add lerping to background animation to make it prettier
 - [ ] Visual: Add glow effect to background dots
 - [ ] Feat: Add pretty melodic sound effect when clicking the background
+
+## Fun Ideas
+
+- [ ] Add theme changing effect every time background is clicked (or theme change button, paint icon)
+  - Should ripple outward originating from the click, LERP everything
 
 ---
 
