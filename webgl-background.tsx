@@ -190,17 +190,34 @@ export default function WebGLBackground() {
     let mouseX = 0
     let mouseY = 0
     let startTime = Date.now()
+    
+    const resetMouse = () => {
+      // Place mouse far away so influence is zero
+      mouseX = 1e6
+      mouseY = 1e6
+    }
+    // Default to no highlight until pointer is over canvas
+    resetMouse()
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return
       const rect = canvas.getBoundingClientRect()
-      mouseX = e.clientX - rect.left
-      mouseY = e.clientY - rect.top
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+      if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
+        mouseX = x
+        mouseY = y
+      } else {
+        resetMouse()
+      }
     }
 
-    const handleClick = (e: MouseEvent) => {
+    const handlePointerDown = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect()
       const clickX = e.clientX - rect.left
       const clickY = e.clientY - rect.top
+      // Only create ripple if the pointer is on the canvas area
+      if (clickX < 0 || clickY < 0 || clickX > rect.width || clickY > rect.height) return
       
       // Add new ripple
       const maxRadius = Math.max(rect.width, rect.height)
@@ -292,15 +309,26 @@ export default function WebGLBackground() {
     }
 
     window.addEventListener('resize', resizeCanvas)
-    window.addEventListener('mousemove', handleMouseMove, { passive: true })
-    window.addEventListener('click', handleClick, { passive: true })
+    // Track pointer globally; update highlight only when inside canvas rect
+    window.addEventListener('pointermove', handlePointerMove as any, { passive: true } as any)
+    window.addEventListener('pointerdown', handlePointerDown as any, { passive: true } as any)
+    // Reset when leaving the window or tab loses focus
+    const handlePointerOut = (e: PointerEvent) => {
+      // If leaving the document/window
+      if (!e.relatedTarget) resetMouse()
+    }
+    const handleBlur = () => resetMouse()
+    window.addEventListener('pointerout', handlePointerOut as any)
+    window.addEventListener('blur', handleBlur)
     
     animate()
 
     return () => {
       window.removeEventListener('resize', resizeCanvas)
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('click', handleClick)
+      window.removeEventListener('pointermove', handlePointerMove as any)
+      window.removeEventListener('pointerdown', handlePointerDown as any)
+      window.removeEventListener('pointerout', handlePointerOut as any)
+      window.removeEventListener('blur', handleBlur)
     }
   }, [theme])
 
