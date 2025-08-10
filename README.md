@@ -20,14 +20,14 @@ This is a modern, animated personal link page built with Next.js, TypeScript, an
 - [x] Fix: Clicking in foreground card shouldn't trigger background animation 
 - [ ] Fix: Recompute dots on page resize to fix non-reactiveness on resize
 - [x] Visual: Add lerping to background animation to make it prettier
-- [ ] Visual: Add glow effect to background dots
-- [ ] Feat: Add pretty melodic sound effect when clicking the background
 
 ## Fun Ideas
 
 - [ ] Add theme changing effect every time background is clicked (or theme change button, paint icon)
   - Should ripple outward originating from the click, LERP everything
-- [ ] Make the right around the foreground card go white, following the wave. (could also go RGB in light mode)
+- [ ] Feat: Make the ring around the foreground card go white, following the wave. (could also go RGB in light mode)
+- [ ] Feat: Add pretty melodic sound effect when clicking the background, different zones = different pitches
+- [ ] Visual: Add glow effect to background dots
 
 ---
 
