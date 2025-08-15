@@ -22,7 +22,7 @@ export default function WebGLBackground() {
     // Simple melodic click sound using notes served from public/sounds
     // Ordered from lowest pitch to highest pitch
     const noteNames = [
-      'A3', 'B3',
+      'A3', 'E4',
       'A4', 'B4',
       'C#5', 'E5', 'F#5', 'G#5',
       'A5', 'B5',

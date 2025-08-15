@@ -25,10 +25,10 @@ This is a modern, animated personal link page built with Next.js, TypeScript, an
   - Should ripple outward originating from the click, LERP everything
 - [ ] Feat: Make the ring around the foreground card go white, following the wave. (could also go RGB in light mode)
 - [ ] Feat: New mode for background that allows to draw shapes to create unique chords (heart, circle, etc)
-- [ ] Visual: Add glow effect to background dots
-- [ ] Visual: Pretty circular and bendy striations around the click wave
+- [x] Visual: Add glow effect to background dots
 - [ ] Visual: Add COLOR to background effects
 - [ ] Visual: Draw lines between the places clicked in a pretty way
+- [ ] Feat: Add all missing notes between A3 -> A7, then implement a scale dropdown where users can choose scale
 
 ---
 
