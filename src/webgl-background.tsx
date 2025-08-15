@@ -146,7 +146,7 @@ export default function WebGLBackground() {
       // Calculate proportional spacing based on screen width
       // This ensures consistent density across different screen sizes
       const baseWidth = 1200 // Reference width for spacing calculation
-      const density = 1.1 // >1.0 = more dots, <1.0 = fewer dots
+      const density = 2.2 // >1.0 = more dots, <1.0 = fewer dots
       const raw = (cssWidth / baseWidth) * 40
       const spacing = Math.max(30, Math.min(50, raw)) / density
 
