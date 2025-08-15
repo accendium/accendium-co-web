@@ -182,20 +182,36 @@ export default function WebGLBackground() {
     const ripplesLocation = gl.getUniformLocation(program, 'u_ripples')
     const rippleCountLocation = gl.getUniformLocation(program, 'u_rippleCount')
 
-    // Configurable color gradient: grey → light pink → orange → red → purple
-    const gradientStopsData = new Float32Array([0.0, 0.25, 0.5, 0.75, 1.0])
-    const gradientColorsData = new Float32Array([
-      // grey
-      0.65, 0.65, 0.68,
-      // light pink
-      1.00, 0.70, 0.80,
-      // orange
-      0.01, 0.01, 0.00,
-      // red
-      0.15, 0.15, 1.00,
-      // purple
-      0.60, 0.00, 1.00
-    ])
+    // Configurable color gradient using Hex values (5 colors)
+    // Edit these to customize: grey → light pink → orange → red → purple
+    const gradientHexColors = ['#A6A6AD', '#FFB6C1', '#000000', '#3B30FF', '#8000FF']
+    const gradientStops = [0.0, 0.25, 0.5, 0.75, 1.0]
+
+    const hexToRgbFloats = (hex: string): [number, number, number] => {
+      let h = hex.trim()
+      if (h.startsWith('#')) h = h.slice(1)
+      if (h.length === 3) {
+        h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]
+      }
+      if (h.length !== 6) {
+        return [1, 1, 1]
+      }
+      const r = parseInt(h.slice(0, 2), 16) / 255
+      const g = parseInt(h.slice(2, 4), 16) / 255
+      const b = parseInt(h.slice(4, 6), 16) / 255
+      return [r, g, b]
+    }
+
+    const ensureFive = (arr: string[]) => {
+      const a = arr.slice(0, 5)
+      while (a.length < 5) a.push(a[a.length - 1] || '#FFFFFF')
+      return a
+    }
+
+    const gradientStopsData = new Float32Array(gradientStops)
+    const gradientColorsData = new Float32Array(
+      ensureFive(gradientHexColors).flatMap((c) => hexToRgbFloats(c))
+    )
 
     // Create dots data with proportional density
     const dotSize = 3
