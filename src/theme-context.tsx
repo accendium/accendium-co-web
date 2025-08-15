@@ -14,17 +14,32 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>('dark')
 
+  // Force dark theme for now, but preserve ability to toggle and persist when enabled later
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') as Theme
-    if (savedTheme) {
-      setTheme(savedTheme)
-    }
+    setTheme('dark')
+    try {
+      const savedTheme = localStorage.getItem('theme') as Theme
+      if (savedTheme === 'dark') {
+        setTheme('dark')
+      }
+    } catch {}
+    // Ensure the root element has dark class applied regardless of saved state
+    try {
+      const root = document.documentElement
+      root.classList.add('dark')
+      root.classList.remove('light')
+    } catch {}
   }, [])
 
   const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light'
-    setTheme(newTheme)
-    localStorage.setItem('theme', newTheme)
+    // Temporarily force dark: do not allow switching to light
+    setTheme('dark')
+    try {
+      localStorage.setItem('theme', 'dark')
+      const root = document.documentElement
+      root.classList.add('dark')
+      root.classList.remove('light')
+    } catch {}
   }
 
   return (
