@@ -29,6 +29,7 @@ This is a modern, animated personal link page built with Next.js, TypeScript, an
 - [ ] Visual: Add COLOR to background effects
 - [ ] Visual: Draw lines between the places clicked in a pretty way
 - [ ] Feat: Add all missing notes between A3 -> A7, then implement a scale dropdown where users can choose scale
+- [ ] Promo: Create a short-form video performing a song that uses the website's background as an instrument
 
 ---
 

@@ -84,14 +84,32 @@ export default function WebGLBackground() {
       }
     `
 
-    // Fragment shader with soft glow based on influence
+    // Fragment shader with soft glow based on influence and a configurable color gradient
     const fragmentShaderSource = `
       precision mediump float;
       
-      uniform vec3 u_color;
+      uniform vec3 u_gradientColors[5];
+      uniform float u_gradientStops[5];
       varying float v_opacity;
       varying float v_influence;
       
+      vec3 gradientColor(float t) {
+        float tt = clamp(t, 0.0, 1.0);
+        if (tt <= u_gradientStops[0]) return u_gradientColors[0];
+        if (tt >= u_gradientStops[4]) return u_gradientColors[4];
+        vec3 col = u_gradientColors[4];
+        for (int i = 0; i < 4; i++) {
+          float a = u_gradientStops[i];
+          float b = u_gradientStops[i + 1];
+          if (tt >= a && tt <= b) {
+            float u = (tt - a) / max(0.0001, (b - a));
+            col = mix(u_gradientColors[i], u_gradientColors[i + 1], u);
+            break;
+          }
+        }
+        return col;
+      }
+
       void main() {
         float distance = length(gl_PointCoord - 0.5);
         // Core circle with soft edge
@@ -99,11 +117,13 @@ export default function WebGLBackground() {
         // Glow grows stronger with influence and extends from center outwards
         float glow = v_influence * smoothstep(0.5, 0.0, distance) * 1.5;
         
+        vec3 grad = gradientColor(v_influence);
+        
         float alpha = core * v_opacity + glow * 0.6;
         if (alpha < 0.01) {
           discard;
         }
-        vec3 color = u_color * (core + glow * 1.5);
+        vec3 color = grad * (core + glow * 1.5);
         gl_FragColor = vec4(color, alpha);
       }
     `
@@ -156,10 +176,26 @@ export default function WebGLBackground() {
     const influenceLocation = gl.getAttribLocation(program, 'a_influence')
     const resolutionLocation = gl.getUniformLocation(program, 'u_resolution')
     const mouseLocation = gl.getUniformLocation(program, 'u_mouse')
-    const colorLocation = gl.getUniformLocation(program, 'u_color')
+    const gradientColorsLocation = gl.getUniformLocation(program, 'u_gradientColors[0]')
+    const gradientStopsLocation = gl.getUniformLocation(program, 'u_gradientStops[0]')
     const timeLocation = gl.getUniformLocation(program, 'u_time')
     const ripplesLocation = gl.getUniformLocation(program, 'u_ripples')
     const rippleCountLocation = gl.getUniformLocation(program, 'u_rippleCount')
+
+    // Configurable color gradient: grey → light pink → orange → red → purple
+    const gradientStopsData = new Float32Array([0.0, 0.25, 0.5, 0.75, 1.0])
+    const gradientColorsData = new Float32Array([
+      // grey
+      0.65, 0.65, 0.68,
+      // light pink
+      1.00, 0.70, 0.80,
+      // orange
+      0.01, 0.01, 0.00,
+      // red
+      1.00, 0.15, 0.15,
+      // purple
+      0.60, 0.00, 1.00
+    ])
 
     // Create dots data with proportional density
     const dotSize = 3
@@ -316,6 +352,8 @@ export default function WebGLBackground() {
       if (resolutionLocation) gl.uniform2f(resolutionLocation, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1))
       if (mouseLocation) gl.uniform2f(mouseLocation, mouseX, mouseY)
       if (timeLocation) gl.uniform1f(timeLocation, nowSec)
+      if (gradientColorsLocation) gl.uniform3fv(gradientColorsLocation, gradientColorsData)
+      if (gradientStopsLocation) gl.uniform1fv(gradientStopsLocation, gradientStopsData)
       if (ripplesLocation) {
         const rippleData = new Float32Array(40) // 10 ripples * 4 values each
         for (let i = 0; i < Math.min(ripplesRef.current.length, 10); i++) {
@@ -329,9 +367,7 @@ export default function WebGLBackground() {
       }
       if (rippleCountLocation) gl.uniform1i(rippleCountLocation, ripplesRef.current.length)
       
-      // Set color based on theme
-      const color = theme === 'dark' ? [1.0, 1.0, 1.0] : [0.0, 0.0, 0.0]
-      gl.uniform3f(colorLocation, color[0], color[1], color[2])
+      // Color is driven entirely by gradient uniforms in the fragment shader
 
       // Set up position buffer
       const positions: number[] = []
