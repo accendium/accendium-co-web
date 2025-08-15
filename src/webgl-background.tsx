@@ -130,15 +130,16 @@ export default function WebGLBackground() {
     
     const resizeCanvas = () => {
       const dpr = window.devicePixelRatio || 1
-      // Use viewport size because canvas is fixed to edges via CSS
-      const cssWidth = Math.max(1, Math.round(window.innerWidth))
-      const cssHeight = Math.max(1, Math.round(window.innerHeight))
+      // Measure actual CSS size of the canvas element
+      const cssWidth = Math.max(1, canvas.clientWidth || Math.round(window.innerWidth))
+      const cssHeight = Math.max(1, canvas.clientHeight || Math.round(window.innerHeight))
 
-      // Only set the canvas buffer size; let CSS control layout size
-      canvas.width = cssWidth * dpr
-      canvas.height = cssHeight * dpr
-      canvas.style.width = ''
-      canvas.style.height = ''
+      // Set the drawing buffer size to match CSS size * DPR
+      canvas.width = Math.floor(cssWidth * dpr)
+      canvas.height = Math.floor(cssHeight * dpr)
+      // Ensure element fills the viewport using dynamic viewport units
+      canvas.style.width = '100dvw'
+      canvas.style.height = '100dvh'
 
       gl.viewport(0, 0, canvas.width, canvas.height)
       
@@ -241,8 +242,10 @@ export default function WebGLBackground() {
       // Ensure canvas size and grid are up to date (handles window/page resize)
       {
         const dpr = window.devicePixelRatio || 1
-        const targetWidth = Math.max(1, Math.floor(window.innerWidth * dpr))
-        const targetHeight = Math.max(1, Math.floor(window.innerHeight * dpr))
+        const cssWidth = Math.max(1, canvas.clientWidth || Math.round(window.innerWidth))
+        const cssHeight = Math.max(1, canvas.clientHeight || Math.round(window.innerHeight))
+        const targetWidth = Math.max(1, Math.floor(cssWidth * dpr))
+        const targetHeight = Math.max(1, Math.floor(cssHeight * dpr))
         if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
           resizeCanvas()
         }
