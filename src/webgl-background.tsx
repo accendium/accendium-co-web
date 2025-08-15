@@ -19,6 +19,27 @@ export default function WebGLBackground() {
     const canvas = canvasRef.current
     if (!canvas) return
 
+    // Simple melodic click sound using notes served from public/sounds
+    const noteNames = [
+      'A3','A4','A5','A6','A7',
+      'B3','B4','B5','B6',
+      'C#5','C#6','C#7',
+      'E5','E6','E7',
+      'F#5','F#6','F#7',
+      'G#5','G#6','G#7'
+    ]
+    const playClickSound = () => {
+      try {
+        const note = noteNames[Math.floor(Math.random() * noteNames.length)]
+        const fileName = `${note}.mp3`
+        const url = `/sounds/${encodeURIComponent(fileName)}`
+        const audio = new Audio(url)
+        audio.volume = 0.25
+        // Play without blocking; ignore failures (e.g., autoplay policies)
+        void audio.play().catch(() => {})
+      } catch {}
+    }
+
     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
     if (!gl || !(gl instanceof WebGLRenderingContext)) {
       console.warn('WebGL not supported, falling back to canvas')
@@ -220,6 +241,9 @@ export default function WebGLBackground() {
       // Only create ripple if the pointer is on the canvas area
       if (clickX < 0 || clickY < 0 || clickX > rect.width || clickY > rect.height) return
       
+      // Play a melodic click sound
+      playClickSound()
+
       // Add new ripple
       const maxRadius = Math.max(rect.width, rect.height)
       ripplesRef.current.push({
