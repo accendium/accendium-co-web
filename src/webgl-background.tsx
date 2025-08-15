@@ -68,6 +68,7 @@ export default function WebGLBackground() {
       uniform int u_rippleCount; // kept for compatibility (unused)
       
       varying float v_opacity;
+      varying float v_influence;
       
       void main() {
         vec2 position = a_position / u_resolution * 2.0 - 1.0;
@@ -79,22 +80,31 @@ export default function WebGLBackground() {
         gl_Position = vec4(position, 0.0, 1.0);
         gl_PointSize = size;
         v_opacity = 0.3 + totalInfluence * 0.5;
+        v_influence = totalInfluence;
       }
     `
 
-    // Fragment shader remains the same
+    // Fragment shader with soft glow based on influence
     const fragmentShaderSource = `
       precision mediump float;
       
       uniform vec3 u_color;
       varying float v_opacity;
+      varying float v_influence;
       
       void main() {
         float distance = length(gl_PointCoord - 0.5);
-        if (distance > 0.5) {
+        // Core circle with soft edge
+        float core = smoothstep(0.5, 0.45, distance);
+        // Glow grows stronger with influence and extends from center outwards
+        float glow = v_influence * smoothstep(0.5, 0.0, distance) * 1.5;
+        
+        float alpha = core * v_opacity + glow * 0.6;
+        if (alpha < 0.01) {
           discard;
         }
-        gl_FragColor = vec4(u_color, v_opacity);
+        vec3 color = u_color * (core + glow * 1.5);
+        gl_FragColor = vec4(color, alpha);
       }
     `
 
@@ -213,10 +223,13 @@ export default function WebGLBackground() {
     let mouseY = 0
     let startTime = Date.now()
     let lastTimeSec = 0
+    let mouseSuspended = false
+    let mouseInfluenceFactor = 1
 
     // Animation smoothing configuration (milliseconds)
     const influenceLerpInMs = 20 // increase speed
     const influenceLerpOutMs = 300 // decrease speed
+    const mouseReenableTauSec = 0.8 // slow fade-in after movement resumes
     
     const resetMouse = () => {
       // Place mouse far away so influence is zero
@@ -234,13 +247,19 @@ export default function WebGLBackground() {
       if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
         mouseX = x
         mouseY = y
+        // Resume mouse influence and let it fade back in
+        mouseSuspended = false
       } else {
         resetMouse()
       }
     }
 
     const handlePointerDown = (e: PointerEvent) => {
-      // Ignore clicks that originate from the foreground card
+      // On any click, pause mouse-based influence until movement resumes
+      mouseSuspended = true
+      mouseInfluenceFactor = 0
+      
+      // Ignore clicks that originate from the foreground card for ripples
       const target = e.target as HTMLElement | null
       const isForeground = target && (target.closest('[data-foreground-card]') !== null)
       if (isForeground) return
@@ -355,6 +374,14 @@ export default function WebGLBackground() {
       const dt = Math.max(0, currentSec - lastTimeSec)
       lastTimeSec = currentSec
 
+      // Update mouse influence factor (ramps in after suspension)
+      if (mouseSuspended) {
+        mouseInfluenceFactor = 0
+      } else {
+        const ramp = 1 - Math.exp(-dt / mouseReenableTauSec)
+        mouseInfluenceFactor += (1 - mouseInfluenceFactor) * ramp
+      }
+
       const inTau = Math.max(0.001, influenceLerpInMs / 1000)
       const outTau = Math.max(0.001, influenceLerpOutMs / 1000)
       const inFactor = 1 - Math.exp(-dt / inTau)
@@ -370,14 +397,15 @@ export default function WebGLBackground() {
 
         let influence = 0
 
-        // Mouse influence
+        // Mouse influence (suppressed while suspended, then fades in)
         const dx = mouseX - x
         const dy = mouseY - y
         const distSq = dx * dx + dy * dy
         const mouseRadiusSq = mouseRadius * mouseRadius
         if (distSq < mouseRadiusSq) {
           const dist = Math.sqrt(distSq)
-          influence += Math.max(0, 1 - dist / mouseRadius)
+          const base = Math.max(0, 1 - dist / mouseRadius)
+          influence += base * mouseInfluenceFactor
         }
 
         // Ripple ring influence

@@ -17,6 +17,7 @@ This is a modern, animated personal link page built with Next.js, TypeScript, an
 
 - [x] Feat: Add pretty melodic sound effect when clicking the background, different zones = different pitches
 - [x] Feat: Make profile card closable, create a new toolbar bottom center with small logo to reopen card
+- [ ] Sound: Make the zoning for the bottom note 4x bigger so it's easier to click
 
 ## Fun Ideas
 
