@@ -130,27 +130,30 @@ export default function WebGLBackground() {
     
     const resizeCanvas = () => {
       const dpr = window.devicePixelRatio || 1
-      const rect = canvas.getBoundingClientRect()
-      
-      canvas.width = rect.width * dpr
-      canvas.height = rect.height * dpr
-      canvas.style.width = rect.width + 'px'
-      canvas.style.height = rect.height + 'px'
-      
+      // Use viewport size because canvas is fixed to edges via CSS
+      const cssWidth = Math.max(1, Math.round(window.innerWidth))
+      const cssHeight = Math.max(1, Math.round(window.innerHeight))
+
+      // Only set the canvas buffer size; let CSS control layout size
+      canvas.width = cssWidth * dpr
+      canvas.height = cssHeight * dpr
+      canvas.style.width = ''
+      canvas.style.height = ''
+
       gl.viewport(0, 0, canvas.width, canvas.height)
       
       // Calculate proportional spacing based on screen width
       // This ensures consistent density across different screen sizes
       const baseWidth = 1200 // Reference width for spacing calculation
       const density = 1.1 // >1.0 = more dots, <1.0 = fewer dots
-      const raw = (rect.width / baseWidth) * 40
+      const raw = (cssWidth / baseWidth) * 40
       const spacing = Math.max(30, Math.min(50, raw)) / density
 
       // Center the grid of dots within the canvas
-      const numCols = Math.max(1, Math.floor(rect.width / spacing))
-      const numRows = Math.max(1, Math.floor(rect.height / spacing))
-      const startX = (rect.width - (numCols - 1) * spacing) / 2
-      const startY = (rect.height - (numRows - 1) * spacing) / 2
+      const numCols = Math.max(1, Math.floor(cssWidth / spacing))
+      const numRows = Math.max(1, Math.floor(cssHeight / spacing))
+      const startX = (cssWidth - (numCols - 1) * spacing) / 2
+      const startY = (cssHeight - (numRows - 1) * spacing) / 2
 
       // Recreate dots with centered grid
       dots.length = 0
@@ -235,6 +238,15 @@ export default function WebGLBackground() {
       if (!gl || !program) return
 
       const nowSec = (Date.now() - startTime) / 1000
+      // Ensure canvas size and grid are up to date (handles window/page resize)
+      {
+        const dpr = window.devicePixelRatio || 1
+        const targetWidth = Math.max(1, Math.floor(window.innerWidth * dpr))
+        const targetHeight = Math.max(1, Math.floor(window.innerHeight * dpr))
+        if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+          resizeCanvas()
+        }
+      }
 
       // Clean up old ripples (older than 2 seconds)
       ripplesRef.current = ripplesRef.current.filter(ripple => 
@@ -399,7 +411,7 @@ export default function WebGLBackground() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-0 w-full h-full"
+      className="fixed inset-0 pointer-events-none z-0"
       style={{ background: 'transparent', pointerEvents: 'auto' }}
     />
   )

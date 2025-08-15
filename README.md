@@ -18,7 +18,7 @@ This is a modern, animated personal link page built with Next.js, TypeScript, an
 - [x] Fix: Background dots centering
 - [x] Fix: Mobile touch 'stickiness' (touching and releasing shouldn't continue animating on UI)
 - [x] Fix: Clicking in foreground card shouldn't trigger background animation 
-- [ ] Fix: Recompute dots on page resize to fix non-reactiveness on resize
+- [x] Fix: Recompute dots on page resize to fix non-reactiveness on resize
 - [x] Visual: Add lerping to background animation to make it prettier
 
 ## Fun Ideas
