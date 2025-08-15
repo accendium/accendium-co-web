@@ -177,13 +177,14 @@ export default function WebGLBackground() {
       const baseWidth = 1200 // Reference width for spacing calculation
       const density = 4.0 // >1.0 = more dots, <1.0 = fewer dots
       const raw = (cssWidth / baseWidth) * 40
-      const spacing = Math.max(30, Math.min(50, raw)) / density
+      const spacingFloat = Math.max(30, Math.min(50, raw)) / density
+      const spacing = Math.max(1, Math.round(spacingFloat)) // round to remove sub-pixel placements
 
       // Center the grid of dots within the canvas
       const numCols = Math.max(1, Math.floor(cssWidth / spacing))
       const numRows = Math.max(1, Math.floor(cssHeight / spacing))
-      const startX = (cssWidth - (numCols - 1) * spacing) / 2
-      const startY = (cssHeight - (numRows - 1) * spacing) / 2
+      const startX = Math.round((cssWidth - (numCols - 1) * spacing) / 2) // round to remove sub-pixel placements
+      const startY = Math.round((cssHeight - (numRows - 1) * spacing) / 2) // round to remove sub-pixel placements
 
       // Recreate dots with centered grid
       dots.length = 0

@@ -163,7 +163,7 @@ export default function Component() {
             <p className={`text-sm font-sans transition-colors duration-300 ${
               isDark ? 'text-white/70' : 'text-black/70'
             }`}>
-              developer.
+              developer and creator.
             </p>
           </div>
 
