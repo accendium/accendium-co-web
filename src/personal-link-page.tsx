@@ -58,7 +58,7 @@ export default function Component() {
                 width={120}
                 height={120}
                 className={`rounded-none border-2 object-cover shadow-lg transition-colors duration-300 ${
-                  isDark ? 'border-black' : 'border-black'
+                  isDark ? 'border-none' : 'border-none'
                 }`}
               />
             </div>
