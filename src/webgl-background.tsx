@@ -192,7 +192,7 @@ export default function WebGLBackground() {
       // orange
       0.01, 0.01, 0.00,
       // red
-      1.00, 0.15, 0.15,
+      0.15, 0.15, 1.00,
       // purple
       0.60, 0.00, 1.00
     ])
