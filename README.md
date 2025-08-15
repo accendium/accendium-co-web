@@ -15,20 +15,19 @@ This is a modern, animated personal link page built with Next.js, TypeScript, an
 
 ## ✅ Todo
 
-- [x] Fix: Background dots centering
-- [x] Fix: Mobile touch 'stickiness' (touching and releasing shouldn't continue animating on UI)
-- [x] Fix: Clicking in foreground card shouldn't trigger background animation 
-- [x] Fix: Recompute dots on page resize to fix non-reactiveness on resize
-- [x] Visual: Add lerping to background animation to make it prettier
+- [x] Feat: Add pretty melodic sound effect when clicking the background, different zones = different pitches
+- [ ] Feat: Make profile card closable, create a new toolbar bottom left with small logo to reopen card
 
 ## Fun Ideas
 
 - [ ] Add theme changing effect every time background is clicked (or theme change button, paint icon)
   - Should ripple outward originating from the click, LERP everything
 - [ ] Feat: Make the ring around the foreground card go white, following the wave. (could also go RGB in light mode)
-- [ ] Feat: Add pretty melodic sound effect when clicking the background, different zones = different pitches
 - [ ] Feat: New mode for background that allows to draw shapes to create unique chords (heart, circle, etc)
 - [ ] Visual: Add glow effect to background dots
+- [ ] Visual: Pretty circular and bendy striations around the click wave
+- [ ] Visual: Add COLOR to background effects
+- [ ] Visual: Draw lines between the places clicked in a pretty way
 
 ---
 
