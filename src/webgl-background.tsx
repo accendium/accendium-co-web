@@ -20,17 +20,25 @@ export default function WebGLBackground() {
     if (!canvas) return
 
     // Simple melodic click sound using notes served from public/sounds
+    // Ordered from lowest pitch to highest pitch
     const noteNames = [
-      'A3','A4','A5','A6','A7',
-      'B3','B4','B5','B6',
-      'C#5','C#6','C#7',
-      'E5','E6','E7',
-      'F#5','F#6','F#7',
-      'G#5','G#6','G#7'
+      'A3', 'B3',
+      'A4', 'B4',
+      'C#5', 'E5', 'F#5', 'G#5',
+      'A5', 'B5',
+      'C#6', 'E6', 'F#6', 'G#6',
+      'A6', 'B6',
+      'C#7', 'E7', 'F#7', 'G#7',
+      'A7'
     ]
-    const playClickSound = () => {
+    const playClickSound = (clickY: number, surfaceHeight: number) => {
       try {
-        const note = noteNames[Math.floor(Math.random() * noteNames.length)]
+        // Map vertical position → pitch (bottom = lower notes, top = higher notes)
+        const h = Math.max(1, surfaceHeight)
+        const yNorm = Math.min(1, Math.max(0, clickY / h))
+        const t = 1 - yNorm
+        const idx = Math.max(0, Math.min(noteNames.length - 1, Math.round(t * (noteNames.length - 1))))
+        const note = noteNames[idx]
         const fileName = `${note}.mp3`
         const url = `/sounds/${encodeURIComponent(fileName)}`
         const audio = new Audio(url)
@@ -241,8 +249,8 @@ export default function WebGLBackground() {
       // Only create ripple if the pointer is on the canvas area
       if (clickX < 0 || clickY < 0 || clickX > rect.width || clickY > rect.height) return
       
-      // Play a melodic click sound
-      playClickSound()
+      // Play a melodic click sound mapped by vertical position
+      playClickSound(clickY, rect.height)
 
       // Add new ripple
       const maxRadius = Math.max(rect.width, rect.height)
