@@ -2,11 +2,13 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useRef, useState, type CSSProperties } from "react"
+import { useRef, useState, type CSSProperties, lazy, Suspense } from "react"
 import { Instagram, Twitter, Linkedin, Github, Globe, Mail, X, Youtube } from 'lucide-react'
-import WebGLBackground from './webgl-background'
-import Toolbar from './toolbar'
 import { useTheme } from './theme-context'
+
+// Dynamic imports for heavy components
+const WebGLBackground = lazy(() => import('./webgl-background'))
+const Toolbar = lazy(() => import('./toolbar'))
 
 export default function Component() {
   const { theme } = useTheme()
@@ -112,7 +114,9 @@ export default function Component() {
       isDark ? 'bg-black' : 'bg-white'
     }`}>
       {/* GPU-Accelerated Animated Background with Ripple Wave */}
-      <WebGLBackground />
+      <Suspense fallback={<div className="fixed inset-0 bg-transparent" />}>
+        <WebGLBackground />
+      </Suspense>
       
       {/* Main Content Container */}
       <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
@@ -146,6 +150,7 @@ export default function Component() {
                 alt="Profile Picture"
                 width={120}
                 height={120}
+                priority
                 className={`rounded-none border-2 object-cover shadow-lg transition-colors duration-300 ${
                   isDark ? 'border-none' : 'border-none'
                 }`}
@@ -196,20 +201,29 @@ export default function Component() {
 
       {/* Bottom-left toolbar */}
       {hasShownToolbar && showToolbarNow && (
-        <Toolbar
-          items={[
-            {
-              key: 'logo',
-              icon: (
-                <Image src="/logo_white.svg" alt="Open profile card" width={20} height={20} className="opacity-90" />
-              ),
-              onPointerDown: openCard,
-              onClick: (e) => { e.preventDefault() },
-              buttonRef: logoBtnRef,
-              ariaLabel: 'Open profile card',
-            },
-          ]}
-        />
+        <Suspense fallback={null}>
+          <Toolbar
+            items={[
+              {
+                key: 'logo',
+                icon: (
+                  <Image 
+                    src="/logo_white.svg" 
+                    alt="Open profile card" 
+                    width={20} 
+                    height={20} 
+                    className="opacity-90"
+                    loading="lazy"
+                  />
+                ),
+                onPointerDown: openCard,
+                onClick: (e) => { e.preventDefault() },
+                buttonRef: logoBtnRef,
+                ariaLabel: 'Open profile card',
+              },
+            ]}
+          />
+        </Suspense>
       )}
     </div>
   )

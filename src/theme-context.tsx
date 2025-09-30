@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useMemo } from 'react'
 
 type Theme = 'light' | 'dark'
 
@@ -17,18 +17,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Force dark theme for now, but preserve ability to toggle and persist when enabled later
   useEffect(() => {
     setTheme('dark')
-    try {
-      const savedTheme = localStorage.getItem('theme') as Theme
-      if (savedTheme === 'dark') {
-        setTheme('dark')
-      }
-    } catch {}
     // Ensure the root element has dark class applied regardless of saved state
-    try {
-      const root = document.documentElement
-      root.classList.add('dark')
-      root.classList.remove('light')
-    } catch {}
+    const root = document.documentElement
+    root.classList.add('dark')
+    root.classList.remove('light')
   }, [])
 
   const toggleTheme = () => {
@@ -42,8 +34,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }
 
+  const value = useMemo(() => ({ theme, toggleTheme }), [theme])
+
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   )

@@ -31,6 +31,10 @@ export default function WebGLBackground() {
       'C#7', 'E7', 'F#7', 'G#7',
       'A7'
     ]
+    
+    // Cache audio objects to avoid creating new ones each time
+    const audioCache = new Map<string, HTMLAudioElement>()
+    
     const playClickSound = (clickY: number, surfaceHeight: number) => {
       try {
         // Map vertical position → pitch (bottom = lower notes, top = higher notes)
@@ -41,10 +45,21 @@ export default function WebGLBackground() {
         const note = noteNames[idx]
         const fileName = `${note}.mp3`
         const url = `/sounds/${encodeURIComponent(fileName)}`
-        const audio = new Audio(url)
-        audio.volume = 0.25
+        
+        // Use cached audio or create new one
+        let audio = audioCache.get(url)
+        if (!audio) {
+          audio = new Audio()
+          audio.preload = 'auto'
+          audio.src = url
+          audioCache.set(url, audio)
+        }
+        
+        // Clone for concurrent plays
+        const playInstance = audio.cloneNode() as HTMLAudioElement
+        playInstance.volume = 0.25
         // Play without blocking; ignore failures (e.g., autoplay policies)
-        void audio.play().catch(() => {})
+        void playInstance.play().catch(() => {})
       } catch {}
     }
 
@@ -265,11 +280,17 @@ export default function WebGLBackground() {
 
     resizeCanvas()
 
-    // Create buffers
+    // Create buffers (reused across frames for better performance)
     const positionBuffer = gl.createBuffer()
     const sizeBuffer = gl.createBuffer()
     const opacityBuffer = gl.createBuffer()
     const influenceBuffer = gl.createBuffer()
+    
+    // Preallocate typed arrays to avoid GC pressure
+    let positionsArray: Float32Array | null = null
+    let sizesArray: Float32Array | null = null
+    let opacitiesArray: Float32Array | null = null
+    let influencesArray: Float32Array | null = null
 
     let mouseX = 0
     let mouseY = 0
@@ -385,37 +406,43 @@ export default function WebGLBackground() {
       
       // Color is driven entirely by gradient uniforms in the fragment shader
 
-      // Set up position buffer
-      const positions: number[] = []
-      const sizes: number[] = []
-      const opacities: number[] = []
+      // Set up position buffer - optimize by reusing typed arrays
+      const numDots = dots.length / 4
+      
+      // Reallocate only if size changed
+      if (!positionsArray || positionsArray.length !== numDots * 2) {
+        positionsArray = new Float32Array(numDots * 2)
+        sizesArray = new Float32Array(numDots)
+        opacitiesArray = new Float32Array(numDots)
+      }
       
       for (let i = 0; i < dots.length; i += 4) {
-        positions.push(dots[i], dots[i + 1])
-        sizes.push(dots[i + 2])
-        opacities.push(dots[i + 3])
+        const dotIdx = i / 4
+        positionsArray[dotIdx * 2] = dots[i]
+        positionsArray[dotIdx * 2 + 1] = dots[i + 1]
+        sizesArray![dotIdx] = dots[i + 2]
+        opacitiesArray![dotIdx] = dots[i + 3]
       }
 
       // Position buffer
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW)
+      gl.bufferData(gl.ARRAY_BUFFER, positionsArray, gl.STATIC_DRAW)
       gl.enableVertexAttribArray(positionLocation)
       gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
 
       // Size buffer
       gl.bindBuffer(gl.ARRAY_BUFFER, sizeBuffer)
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(sizes), gl.STATIC_DRAW)
+      gl.bufferData(gl.ARRAY_BUFFER, sizesArray, gl.STATIC_DRAW)
       gl.enableVertexAttribArray(sizeLocation)
       gl.vertexAttribPointer(sizeLocation, 1, gl.FLOAT, false, 0, 0)
 
       // Opacity buffer
       gl.bindBuffer(gl.ARRAY_BUFFER, opacityBuffer)
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(opacities), gl.STATIC_DRAW)
+      gl.bufferData(gl.ARRAY_BUFFER, opacitiesArray, gl.STATIC_DRAW)
       gl.enableVertexAttribArray(opacityLocation)
       gl.vertexAttribPointer(opacityLocation, 1, gl.FLOAT, false, 0, 0)
 
       // Compute smoothed influences
-      const numDots = positions.length / 2
       const mouseRadius = 150
       const ringWidth = 50
       const rippleDuration = 2.0
@@ -444,8 +471,8 @@ export default function WebGLBackground() {
       }
 
       for (let i = 0; i < numDots; i++) {
-        const x = positions[i * 2]
-        const y = positions[i * 2 + 1]
+        const x = positionsArray[i * 2]
+        const y = positionsArray[i * 2 + 1]
 
         let influence = 0
 
@@ -483,9 +510,14 @@ export default function WebGLBackground() {
         smoothedInfluences[i] = current + (influence - current) * factor
       }
 
-      // Influence buffer
+      // Influence buffer - reuse typed array
+      if (!influencesArray || influencesArray.length !== numDots) {
+        influencesArray = new Float32Array(numDots)
+      }
+      influencesArray.set(smoothedInfluences)
+      
       gl.bindBuffer(gl.ARRAY_BUFFER, influenceBuffer)
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(smoothedInfluences), gl.DYNAMIC_DRAW)
+      gl.bufferData(gl.ARRAY_BUFFER, influencesArray, gl.DYNAMIC_DRAW)
       gl.enableVertexAttribArray(influenceLocation)
       gl.vertexAttribPointer(influenceLocation, 1, gl.FLOAT, false, 0, 0)
 
@@ -494,7 +526,7 @@ export default function WebGLBackground() {
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
       // Draw points
-      gl.drawArrays(gl.POINTS, 0, positions.length / 2)
+      gl.drawArrays(gl.POINTS, 0, numDots)
 
       requestAnimationFrame(animate)
     }
