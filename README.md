@@ -1,11 +1,10 @@
-# accendium.co Personal Link Site
+# ℹ️ About
 
 This is a modern, animated personal link page built with Next.js, TypeScript, and Tailwind CSS. It features a dynamic, interactive WebGL background that responds to mouse movements and clicks, creating a unique and engaging user experience.
 
 ## ✨ Features
 
 - **Interactive WebGL Background**: A GPU-accelerated particle animation that reacts to cursor movement and clicks.
-- **Dark/Light Mode**: The theme adapts to the user's system preference.
 - **Responsive Design**: Looks great on all devices, from mobile to desktop.
 - **Built with Modern Tech**:
   - [Next.js](https://nextjs.org/) (App Router)
@@ -17,9 +16,11 @@ This is a modern, animated personal link page built with Next.js, TypeScript, an
 
 - [x] Feat: Add pretty melodic sound effect when clicking the background, different zones = different pitches
 - [x] Feat: Make profile card closable, create a new toolbar bottom center with small logo to reopen card
+- [ ] Fix: Cache sounds client-side to remove latency
 - [ ] Sound: Make the zoning for the bottom note 4x bigger so it's easier to click
+- [ ] Sound: Make clicking buttons play pretty droplet-like chords, and lean into the ethereal water theming
 
-## Fun Ideas
+## 💡 Fun Ideas
 
 - [ ] Add theme changing effect every time background is clicked (or theme change button, paint icon)
   - Should ripple outward originating from the click, LERP everything
@@ -33,11 +34,11 @@ This is a modern, animated personal link page built with Next.js, TypeScript, an
 
 ---
 
-## Next.js Boilerplate Information
+## 🛠️ Next.js Boilerplate Information
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-### Getting Started
+### 🚀 Getting Started
 
 First, run the development server:
 
@@ -57,7 +58,7 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-### Learn More
+### 📚 Learn More
 
 To learn more about Next.js, take a look at the following resources:
 
@@ -66,7 +67,7 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-### Deploy on Vercel
+### ☁️ Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
