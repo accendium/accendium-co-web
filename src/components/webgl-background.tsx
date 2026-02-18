@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useTheme } from './theme-context'
 
 interface ClickRipple {
   x: number
@@ -12,7 +11,6 @@ interface ClickRipple {
 
 export default function WebGLBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const { theme } = useTheme()
   const ripplesRef = useRef<ClickRipple[]>([])
 
   useEffect(() => {
@@ -522,7 +520,7 @@ export default function WebGLBackground() {
       window.removeEventListener('pointerout', handlePointerOut as any)
       window.removeEventListener('blur', handleBlur)
     }
-  }, [theme])
+  }, [])
 
   return (
     <canvas

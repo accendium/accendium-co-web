@@ -1,4 +1,4 @@
-import PersonalLinkPage from "../personal-link-page"
+import PersonalLinkPage from "../components/personal-link-page"
 
 export default function Page() {
   return (
