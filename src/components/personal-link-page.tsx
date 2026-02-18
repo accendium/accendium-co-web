@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState, type CSSProperties } from "react";
-import { Twitter, Github, Globe, Mail, Youtube } from "lucide-react";
+import { Twitter, Github, Globe, Mail, Youtube, X } from "lucide-react";
 import WebGLBackground from "@/components/webgl-background";
 import Toolbar from "@/components/ui/toolbar";
 
@@ -32,78 +32,10 @@ const LINKS = [
 
 export default function Component() {
   const [isCardOpen, setIsCardOpen] = useState(true);
-  const [isToolbarVisible, setIsToolbarVisible] = useState(false);
   const [shrinkStyle, setShrinkStyle] = useState<CSSProperties | undefined>(undefined);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const logoBtnRef = useRef<HTMLButtonElement | null>(null);
-
-  const closeCard = () => {
-    const cardEl = cardRef.current;
-    const btnEl = logoBtnRef.current;
-    if (!cardEl) {
-      setIsCardOpen(false);
-      return;
-    }
-    const startRect = cardEl.getBoundingClientRect();
-    const endRect = btnEl
-      ? btnEl.getBoundingClientRect()
-      : (() => {
-          const rem =
-            parseFloat(getComputedStyle(document.documentElement).fontSize) ||
-            16;
-          const buttonSize = 3 * rem;
-          const bottomOffset = 1.5 * rem;
-          const left = window.innerWidth / 2 - buttonSize / 2;
-          const top = window.innerHeight - bottomOffset - buttonSize;
-          return { left, top, width: buttonSize, height: buttonSize };
-        })();
-    const translateX =
-      endRect.left + endRect.width / 2 - (startRect.left + startRect.width / 2);
-    const translateY =
-      endRect.top + endRect.height / 2 - (startRect.top + startRect.height / 2);
-    const scaleX = Math.max(0.1, endRect.width / startRect.width);
-    const scaleY = Math.max(0.1, endRect.height / startRect.height);
-    setIsToolbarVisible(true);
-    setShrinkStyle({
-      transform: `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`,
-    });
-    window.setTimeout(() => {
-      setIsCardOpen(false);
-      window.setTimeout(() => {
-        setShrinkStyle(undefined);
-        setIsToolbarVisible(true);
-      }, 320);
-    }, 300);
-  };
-
-  const openCard = () => {
-    setIsToolbarVisible(false);
-    const cardEl = cardRef.current;
-    const btnEl = logoBtnRef.current;
-    if (!cardEl || !btnEl) {
-      setShrinkStyle(undefined);
-      setIsCardOpen(true);
-      return;
-    }
-    const endRect = cardEl.getBoundingClientRect();
-    const startRect = btnEl.getBoundingClientRect();
-    const translateX =
-      startRect.left + startRect.width / 2 - (endRect.left + endRect.width / 2);
-    const translateY =
-      startRect.top + startRect.height / 2 - (endRect.top + endRect.height / 2);
-    const scaleX = Math.max(0.1, startRect.width / endRect.width);
-    const scaleY = Math.max(0.1, startRect.height / endRect.height);
-    setShrinkStyle({
-      transform: `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`,
-    });
-    requestAnimationFrame(() => {
-      setIsCardOpen(true);
-      requestAnimationFrame(() => {
-        setShrinkStyle({ transform: "translate(0px, 0px) scale(1, 1)" });
-      });
-    });
-  };
-
+  
   return (
     <div
       className={`min-h-screen relative overflow-hidden transition-colors duration-300 bg-black`}
@@ -123,11 +55,11 @@ export default function Component() {
         >
           <div className="flex justify-end mb-4">
             <button
-              onClick={closeCard}
-              className={`border-white/20 text-white hover:bg-white/10`}
+              onClick={() => setIsCardOpen(false)}
+              className={`border-white/20 text-white hover:bg-white/10 h-8 w-8 rounded-md border flex items-center justify-center text-lg leading-none`}
               aria-label="Close profile card"
             >
-              ×
+              <X size={16}/>
             </button>
           </div>
           <div className="text-center mb-8">
@@ -178,7 +110,7 @@ export default function Component() {
         </div>
       </div>
 
-      {isToolbarVisible && (
+      {!isCardOpen && (
         <Toolbar
           items={[
             {
@@ -192,7 +124,7 @@ export default function Component() {
                   className="opacity-90"
                 />
               ),
-              onPointerDown: openCard,
+              onPointerDown: () => setIsCardOpen(true),
               onClick: (e) => {
                 e.preventDefault();
               },
