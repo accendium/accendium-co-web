@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState, type CSSProperties } from "react";
-import { Twitter, Github, Globe, Mail, Youtube, X } from "lucide-react";
+import { Twitter, Github, Globe, Mail, Youtube, X, Menu } from "lucide-react";
 import WebGLBackground from "@/components/webgl-background";
 import Toolbar from "@/components/ui/toolbar";
 
@@ -32,10 +32,7 @@ const LINKS = [
 
 export default function Component() {
   const [isCardOpen, setIsCardOpen] = useState(true);
-  const [shrinkStyle, setShrinkStyle] = useState<CSSProperties | undefined>(undefined);
-  const cardRef = useRef<HTMLDivElement | null>(null);
-  const logoBtnRef = useRef<HTMLButtonElement | null>(null);
-  
+
   return (
     <div
       className={`min-h-screen relative overflow-hidden transition-colors duration-300 bg-black`}
@@ -43,12 +40,10 @@ export default function Component() {
       <WebGLBackground />
       <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
         <div
-          ref={cardRef}
           data-foreground-card
-          className={`w-full max-w-md mx-auto backdrop-blur-sm rounded-2xl p-8 border shadow-2xl bg-black/90 border-white/20
+          className={`w-full max-w-md mx-auto backdrop-blur-lg rounded-2xl p-8 border shadow-2xl border-white/20
            ${isCardOpen ? "" : "pointer-events-none"}`}
           style={{
-            ...(shrinkStyle || {}),
             opacity: isCardOpen ? 1 : 0,
             transition: "transform 300ms ease, opacity 180ms ease",
           }}
@@ -59,7 +54,7 @@ export default function Component() {
               className={`border-white/20 text-white hover:bg-white/10 h-8 w-8 rounded-md border flex items-center justify-center text-lg leading-none`}
               aria-label="Close profile card"
             >
-              <X size={16}/>
+              <X size={16} />
             </button>
           </div>
           <div className="text-center mb-8">
@@ -93,12 +88,13 @@ export default function Component() {
                 <Link
                   key={index}
                   href={link.url}
+                  aria-label={link.name}
                   className="group block w-full"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   <div
-                    className={`flex items-center justify-center gap-3 py-3.5 px-6 border rounded-xl backdrop-blur-sm transition-all duration-300 ease-in-out hover:scale-[1.02] hover:shadow-lg border-white/30 bg-black/50 text-white hover:bg-white hover:text-black hover:border-white`}
+                    className={`flex items-center justify-center gap-3 py-3.5 px-6 border rounded-xl backdrop-blur-sm transition-all duration-300 ease-in-out hover:shadow-lg border-white/30 text-white hover:border-white`}
                   >
                     <IconComponent className="w-5 h-5" />
                     <span className="font-medium font-sans">{link.name}</span>
@@ -116,19 +112,12 @@ export default function Component() {
             {
               key: "logo",
               icon: (
-                <Image
-                  src="/logo_white.svg"
-                  alt="Open profile card"
-                  width={20}
-                  height={20}
-                  className="opacity-90"
-                />
+                <Menu size={20} />
               ),
               onPointerDown: () => setIsCardOpen(true),
               onClick: (e) => {
                 e.preventDefault();
               },
-              buttonRef: logoBtnRef,
               ariaLabel: "Open profile card",
             },
           ]}
