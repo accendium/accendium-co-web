@@ -31,7 +31,7 @@ export default function ProfileCard({
     <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
       <Card
         data-foreground-component
-        className={`w-full max-w-md mx-auto backdrop-blur-lg rounded-2xl p-8 border shadow-2xl border-white/20 bg-transparent gap-0
+        className={`w-full select-none max-w-md mx-auto backdrop-blur-lg rounded-2xl p-8 border shadow-2xl border-white/20 bg-transparent gap-0
            ${isCardOpen ? "" : "pointer-events-none"}`}
         style={{
           opacity: isCardOpen ? 1 : 0,
@@ -61,10 +61,10 @@ export default function ProfileCard({
                 alt="Profile Picture"
                 width={120}
                 height={120}
-                className="rounded-none border-2 object-cover shadow-lg transition-colors duration-300 border-none"
+                className="rounded-none border-2 object-cover shadow-lg transition-colors duration-300 border-none [filter:drop-shadow(0_0_8px_rgba(255,255,255,0.6))_drop-shadow(0_0_16px_rgba(255,255,255,0.35))]"
               />
             </div>
-            <CardTitle className="text-2xl font-sans text-white mb-2">
+            <CardTitle className="text-2xl font-sans text-white mb-2 [text-shadow:0_0_12px_rgba(255,255,255,0.5),0_0_24px_rgba(255,255,255,0.3)]">
               accendium.
             </CardTitle>
             <p className="text-sm font-sans text-white/70">
