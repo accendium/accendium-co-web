@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useTheme } from './theme-context'
 
 interface ClickRipple {
   x: number
@@ -12,7 +11,6 @@ interface ClickRipple {
 
 export default function WebGLBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const { theme } = useTheme()
   const ripplesRef = useRef<ClickRipple[]>([])
 
   useEffect(() => {
@@ -313,7 +311,7 @@ export default function WebGLBackground() {
       
       // Ignore clicks that originate from the foreground card for ripples
       const target = e.target as HTMLElement | null
-      const isForeground = target && (target.closest('[data-foreground-card]') !== null)
+      const isForeground = target && (target.closest('[data-foreground-component]') !== null)
       if (isForeground) return
       const rect = canvas.getBoundingClientRect()
       const clickX = e.clientX - rect.left
@@ -522,7 +520,7 @@ export default function WebGLBackground() {
       window.removeEventListener('pointerout', handlePointerOut as any)
       window.removeEventListener('blur', handleBlur)
     }
-  }, [theme])
+  }, [])
 
   return (
     <canvas
