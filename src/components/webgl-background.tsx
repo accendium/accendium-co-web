@@ -311,7 +311,7 @@ export default function WebGLBackground() {
       
       // Ignore clicks that originate from the foreground card for ripples
       const target = e.target as HTMLElement | null
-      const isForeground = target && (target.closest('[data-foreground-card]') !== null)
+      const isForeground = target && (target.closest('[data-foreground-component]') !== null)
       if (isForeground) return
       const rect = canvas.getBoundingClientRect()
       const clickX = e.clientX - rect.left

@@ -1,11 +1,10 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
-import { useRef, useState, type CSSProperties } from "react";
-import { Twitter, Github, Globe, Mail, Youtube, X, Menu } from "lucide-react";
+import ProfileCard from "@/components/profile-card";
+import { Button } from "@/components/ui/button";
 import WebGLBackground from "@/components/webgl-background";
-import Toolbar from "@/components/ui/toolbar";
+import { Github, Mail, Menu, Twitter, Youtube } from "lucide-react";
+import { useState } from "react";
 
 const LINKS = [
   {
@@ -38,9 +37,9 @@ export default function Component() {
       className={`min-h-screen relative overflow-hidden transition-colors duration-300 bg-black`}
     >
       <WebGLBackground />
-      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
+      {/* <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
         <div
-          data-foreground-card
+          data-foreground-component
           className={`w-full max-w-md mx-auto backdrop-blur-lg rounded-2xl p-8 border shadow-2xl border-white/20
            ${isCardOpen ? "" : "pointer-events-none"}`}
           style={{
@@ -104,24 +103,20 @@ export default function Component() {
             })}
           </div>
         </div>
-      </div>
+      </div> */}
+      <ProfileCard links={LINKS} isCardOpen={isCardOpen} setIsCardOpen={setIsCardOpen}/>
 
       {!isCardOpen && (
-        <Toolbar
-          items={[
-            {
-              key: "logo",
-              icon: (
-                <Menu size={20} />
-              ),
-              onPointerDown: () => setIsCardOpen(true),
-              onClick: (e) => {
-                e.preventDefault();
-              },
-              ariaLabel: "Open profile card",
-            },
-          ]}
-        />
+        <Button
+          data-foreground-component
+          onClick={() => setIsCardOpen(true)}
+          aria-label="Open profile card"
+          variant="outline"
+          size="icon"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 h-10 w-10 border backdrop-blur bg-black/60 border-white/20 text-white hover:bg-white/10 hover:text-white focus-visible:ring-white/40 focus-visible:ring-offset-black"
+        >
+          <Menu size={20} />
+        </Button>
       )}
     </div>
   );
