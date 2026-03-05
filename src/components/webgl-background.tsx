@@ -180,8 +180,8 @@ export default function WebGLBackground() {
     const ripplesLocation = gl.getUniformLocation(program, 'u_ripples')
     const rippleCountLocation = gl.getUniformLocation(program, 'u_rippleCount')
 
-    // Configurable color gradient using Hex values (5 colors)
-    // Edit these to customize: grey → light pink → orange → red → purple
+    // Soft pink-to-lavender palette for the reactive dots
+    const pinkHexColors = ['#FFF4FB', '#FFC4E1', '#FF93C9', '#E077D8', '#B388FF']
     const gradientHexColors = ['#A6A6AD', '#FFB6C1', '#000000', '#3B30FF', '#8000FF']
     const gradientStops = [0.0, 0.25, 0.5, 0.75, 1.0]
 
@@ -208,7 +208,7 @@ export default function WebGLBackground() {
 
     const gradientStopsData = new Float32Array(gradientStops)
     const gradientColorsData = new Float32Array(
-      ensureFive(gradientHexColors).flatMap((c) => hexToRgbFloats(c))
+      ensureFive(pinkHexColors).flatMap((c) => hexToRgbFloats(c))
     )
 
     // Create dots data with proportional density

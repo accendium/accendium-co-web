@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { X } from "lucide-react";
+import { Heart } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -31,7 +31,7 @@ export default function ProfileCard({
     <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
       <Card
         data-foreground-component
-        className={`w-full select-none max-w-md mx-auto backdrop-blur-lg rounded-2xl p-8 border shadow-2xl border-white/20 bg-transparent gap-0
+        className={`w-full select-none max-w-md mx-auto backdrop-blur-xl rounded-[2rem] p-8 border shadow-[0_24px_80px_rgba(244,114,182,0.24)] border-pink-100/70 bg-white/45 gap-0
            ${isCardOpen ? "" : "pointer-events-none"}`}
         style={{
           opacity: isCardOpen ? 1 : 0,
@@ -46,10 +46,10 @@ export default function ProfileCard({
               variant="outline"
               size="icon-sm"
               onClick={() => setIsCardOpen?.(false)}
-              className="border-white/20 text-white hover:bg-white/10 hover:text-white"
+              className="border-pink-200/80 bg-white/60 text-pink-500 hover:bg-pink-100 hover:text-pink-600"
               aria-label="Close profile card"
             >
-              <X size={16} />
+              <Heart size={16} className="fill-current" />
             </Button>
           </CardAction>
         </CardHeader>
@@ -57,29 +57,31 @@ export default function ProfileCard({
           <div className="text-center">
             <div className="relative w-[120px] h-[120px] mx-auto mb-6">
               <Image
-                src="/logo_white.svg"
+                src="/logo_pink.svg"
                 alt="Profile Picture"
                 width={120}
                 height={120}
-                className="rounded-none border-2 object-cover shadow-lg transition-colors duration-300 border-none [filter:drop-shadow(0_0_8px_rgba(255,255,255,0.6))_drop-shadow(0_0_16px_rgba(255,255,255,0.35))]"
+                className="object-contain transition-colors duration-300 [filter:drop-shadow(0_0_10px_rgba(255,255,255,0.85))_drop-shadow(0_0_22px_rgba(244,114,182,0.45))]"
               />
             </div>
-            <CardTitle className="text-2xl font-sans text-white mb-2 [text-shadow:0_0_12px_rgba(255,255,255,0.5),0_0_24px_rgba(255,255,255,0.3)]">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.35em] text-pink-400/80">
+              cutesy girly pop
+            </p>
+            <CardTitle className="text-3xl font-sans text-pink-700 mb-2 [text-shadow:0_0_24px_rgba(255,255,255,0.85)]">
               accendium.
             </CardTitle>
-            <p className="text-sm font-sans text-white/70">
-              developer and creator.
+            <p className="text-sm font-sans text-pink-700/75">
+              developer, dreamer, and creator.
             </p>
           </div>
 
           <div className="space-y-3">
             {links.map((link, index) => {
-              const IconComponent = link.icon;
               return (
                 <Button
                   key={index}
                   variant="outline"
-                  className="w-full justify-center gap-3 py-3.5 px-6 rounded-xl backdrop-blur-sm border-white/30 text-white hover:border-white hover:bg-white/10 hover:text-white hover:shadow-lg font-medium font-sans"
+                  className="w-full justify-center gap-3 py-3.5 px-6 rounded-full backdrop-blur-sm border-pink-200/80 bg-white/65 text-pink-700 hover:border-pink-300 hover:bg-pink-100/85 hover:text-pink-800 hover:shadow-[0_10px_30px_rgba(244,114,182,0.16)] font-medium font-sans"
                   asChild
                 >
                   <Link
@@ -88,7 +90,7 @@ export default function ProfileCard({
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <IconComponent className="w-5 h-5" />
+                    <Heart className="w-5 h-5 fill-current" />
                     {link.name}
                   </Link>
                 </Button>
