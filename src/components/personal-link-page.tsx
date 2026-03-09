@@ -3,7 +3,7 @@
 import ProfileCard from "@/components/profile-card";
 import { Button } from "@/components/ui/button";
 import WebGLBackground from "@/components/webgl-background";
-import { Github, Mail, Menu, Twitter, Youtube } from "lucide-react";
+import { Github, Mail, Menu, Twitter, Youtube, Cloud } from "lucide-react";
 import { useState } from "react";
 
 const LINKS = [
@@ -21,6 +21,11 @@ const LINKS = [
     name: "GitHub",
     url: "https://github.com/accendium",
     icon: Github,
+  },
+  {
+    name: "SoundCloud",
+    url: "https://soundcloud.com/accendium",
+    icon: Cloud,
   },
   {
     name: "Email",
