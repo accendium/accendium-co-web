@@ -23,7 +23,7 @@ const LINKS = [
     icon: Github,
   },
   {
-    name: "SoundCloud",
+    name: "Soundcloud",
     url: "https://soundcloud.com/accendium",
     icon: Cloud,
   },
