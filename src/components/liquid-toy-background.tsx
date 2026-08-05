@@ -34,6 +34,38 @@ type LiquidToyBackgroundProps = {
   showDebugLayers?: boolean
   /** Render the "Liquid toy by Leon Denise" attribution link (default: true). */
   showCredit?: boolean
+  /** Play a note on click, pitched by where the click landed (default: true). */
+  playClickNotes?: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Click notes
+// ---------------------------------------------------------------------------
+
+// Notes served from public/sounds, ordered from lowest pitch to highest.
+const CLICK_NOTES = [
+  'A3', 'E4',
+  'A4', 'B4',
+  'C#5', 'E5', 'F#5', 'G#5',
+  'A5', 'B5',
+  'C#6', 'E6', 'F#6', 'G#6',
+  'A6', 'B6',
+  'C#7', 'E7', 'F#7', 'G#7',
+  'A7',
+]
+
+/** Maps vertical position to pitch: the top of the surface is the highest note. */
+const playClickNote = (clickY: number, surfaceHeight: number) => {
+  try {
+    const height = Math.max(1, surfaceHeight)
+    const fromTop = Math.min(1, Math.max(0, clickY / height))
+    const index = Math.round((1 - fromTop) * (CLICK_NOTES.length - 1))
+    // The sharps need encoding, otherwise "#" starts a URL fragment.
+    const audio = new Audio(`/sounds/${encodeURIComponent(CLICK_NOTES[index])}.mp3`)
+    audio.volume = 0.25
+    // Play without blocking; ignore failures (e.g. autoplay policies).
+    void audio.play().catch(() => {})
+  } catch {}
 }
 
 // ---------------------------------------------------------------------------
@@ -375,6 +407,7 @@ export default function LiquidToyBackground({
   followCursor = true,
   showDebugLayers = false,
   showCredit = true,
+  playClickNotes = true,
 }: LiquidToyBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   // Bumped when the GL context is restored, to rebuild every GPU resource.
@@ -551,6 +584,20 @@ export default function LiquidToyBackground({
       if (!event.relatedTarget) releasePointer()
     }
 
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!playClickNotes) return
+      // Clicks on the card and its links belong to the foreground, not here.
+      const target = event.target as HTMLElement | null
+      if (target?.closest('[data-foreground-component]')) return
+
+      const rect = canvas.getBoundingClientRect()
+      const x = event.clientX - rect.left
+      const y = event.clientY - rect.top
+      if (x < 0 || y < 0 || x > rect.width || y > rect.height) return
+
+      playClickNote(y, rect.height)
+    }
+
     let animationFrame = 0
     let running = true
     const startTime = performance.now()
@@ -632,6 +679,7 @@ export default function LiquidToyBackground({
     }
 
     window.addEventListener('pointermove', handlePointerMove, { passive: true })
+    window.addEventListener('pointerdown', handlePointerDown, { passive: true })
     window.addEventListener('pointerout', handlePointerOut)
     window.addEventListener('blur', releasePointer)
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -644,6 +692,7 @@ export default function LiquidToyBackground({
       running = false
       cancelAnimationFrame(animationFrame)
       window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerdown', handlePointerDown)
       window.removeEventListener('pointerout', handlePointerOut)
       window.removeEventListener('blur', releasePointer)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -658,7 +707,7 @@ export default function LiquidToyBackground({
       gl.deleteProgram(bufferProgram)
       gl.deleteProgram(imageProgram)
     }
-  }, [contextEpoch, maxPixelRatio, followCursor, showDebugLayers])
+  }, [contextEpoch, maxPixelRatio, followCursor, showDebugLayers, playClickNotes])
 
   return (
     <>
