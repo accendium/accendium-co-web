@@ -54,23 +54,32 @@ const CLICK_NOTES = [
   'A7',
 ]
 
-/** Maps vertical position to pitch: the top of the surface is the highest note. */
-const playClickNote = (clickY: number, surfaceHeight: number) => {
+/** The surface is banded into one zone per note, highest at the top. */
+const noteZoneAt = (y: number, surfaceHeight: number) => {
+  const height = Math.max(1, surfaceHeight)
+  const fromTop = Math.min(1, Math.max(0, y / height))
+  return Math.round((1 - fromTop) * (CLICK_NOTES.length - 1))
+}
+
+const playNote = (zone: number) => {
   try {
-    const height = Math.max(1, surfaceHeight)
-    const fromTop = Math.min(1, Math.max(0, clickY / height))
-    const index = Math.round((1 - fromTop) * (CLICK_NOTES.length - 1))
     // The sharps need encoding, otherwise "#" starts a URL fragment.
-    const audio = new Audio(`/sounds/${encodeURIComponent(CLICK_NOTES[index])}.mp3`)
+    const audio = new Audio(`/sounds/${encodeURIComponent(CLICK_NOTES[zone])}.mp3`)
     audio.volume = 0.25
     // Play without blocking; ignore failures (e.g. autoplay policies).
     void audio.play().catch(() => {})
   } catch {}
 }
 
+/** Keeps a strum from machine-gunning when the pointer sits on a zone edge. */
+const MIN_NOTE_GAP_MS = 45
+
 // ---------------------------------------------------------------------------
 // GLSL
 // ---------------------------------------------------------------------------
+
+/** How many clicks can be popping at once before the oldest is recycled. */
+const POP_COUNT = 4
 
 // Shadertoy "Common" tab. iChannel2 / iChannel3 are unused by this shader.
 const COMMON_GLSL = /* glsl */ `
@@ -103,6 +112,9 @@ uniform float iTimeDelta;
 uniform vec4 iMouse;
 uniform sampler3D iChannel0;
 uniform sampler2D iChannel1;
+// Recent clicks: xy = pixel position, z = time of the click, w = slot in use.
+#define POP_COUNT ${POP_COUNT}
+uniform vec4 iPops[POP_COUNT];
 
 out vec4 outColor;
 ${COMMON_GLSL}
@@ -118,6 +130,13 @@ const float falloff = 3.;
 const float fade = .4;
 const float strength = 1.;
 const float range = 5.;
+
+// click pop
+const float popDuration = .5;
+const float popSpeed = .32;
+const float popThickness = .05;
+const float popRadius = .3;
+const float popPush = 5.;
 
 // fractal brownian motion (layers of multi scale noise)
 vec3 fbm(vec3 p)
@@ -138,6 +157,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     // coordinates
     vec2 uv = (fragCoord.xy - iResolution.xy / 2.)/iResolution.y;
     vec2 aspect = vec2(iResolution.x/iResolution.y, 1);
+    // uv gets moved onto the blob below, so keep the centered frame for the pops
+    vec2 centered = uv;
 
     // noise
     vec3 spice = fbm(vec3(uv*scale,iTime*speed));
@@ -148,6 +169,25 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     if (iMouse.z > .5) uv -= mouse;
     else uv -= vec2(cos(t),sin(t))*.3;
     float paint = trace(length(uv),.1);
+
+    // pop each recent click: an expanding shockwave ring, plus an outward
+    // shove that blows the surrounding fluid away from the impact
+    float pop = 0.;
+    vec2 popOffset = vec2(0);
+    for (int index = 0; index < POP_COUNT; ++index)
+    {
+        vec4 popData = iPops[index];
+        float age = iTime - popData.z;
+        if (popData.w < .5 || age < 0. || age > popDuration) continue;
+
+        float decay = 1. - age/popDuration;
+        vec2 delta = centered - (popData.xy - iResolution.xy / 2.)/iResolution.y;
+        float dist = length(delta);
+
+        pop = max(pop, trace(abs(dist - age*popSpeed), popThickness) * decay);
+        popOffset += normalize(delta + 1e-6) * ss(popRadius, 0., dist) * decay*decay * popPush;
+    }
+    paint = max(paint, pop);
 
     // expansion
     vec2 offset = vec2(0);
@@ -164,6 +204,10 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     spice.x *= 6.28*2.;
     spice.x += iTime;
     offset += vec2(cos(spice.x),sin(spice.x));
+
+    // explosion. The advection above runs once per frame, so the pop is scaled
+    // by the frame time to shove the fluid the same distance at any framerate.
+    offset += popOffset * iTimeDelta * 60.;
 
     uv += strength * offset / aspect / 472.;
 
@@ -444,6 +488,7 @@ export default function LiquidToyBackground({
       mouse: uniform(bufferProgram, 'iMouse'),
       channel0: uniform(bufferProgram, 'iChannel0'),
       channel1: uniform(bufferProgram, 'iChannel1'),
+      pops: uniform(bufferProgram, 'iPops[0]'),
     }
     const imageUniforms = {
       resolution: uniform(imageProgram, 'iResolution'),
@@ -556,14 +601,54 @@ export default function LiquidToyBackground({
       return
     }
 
+    let animationFrame = 0
+    let running = true
+    const startTime = performance.now()
+    let previousTime = startTime
+    const elapsed = () => (performance.now() - startTime) / 1000
+
     // iMouse: xy in pixels with a bottom-left origin, z > 0 while "pressed".
     // Hover stands in for the press so the blob tracks the cursor on a page.
     const mouse = { x: canvas.width / 2, y: canvas.height / 2, active: 0 }
 
+    // Ring buffer of recent clicks, read by the pop loop in Buffer A.
+    const pops = new Float32Array(POP_COUNT * 4)
+    let popSlot = 0
+    const addPop = (x: number, y: number) => {
+      const base = popSlot * 4
+      pops[base] = x
+      pops[base + 1] = y
+      pops[base + 2] = elapsed()
+      pops[base + 3] = 1
+      popSlot = (popSlot + 1) % POP_COUNT
+    }
+
+    // A strum: hold the pointer down and sweep it through the note zones.
+    const strum = { active: false, zone: -1, lastNoteAt: 0 }
+
+    const endStrum = () => {
+      strum.active = false
+      strum.zone = -1
+    }
+
+    const strumTo = (clientY: number, rect: DOMRect) => {
+      const zone = noteZoneAt(clientY - rect.top, rect.height)
+      const now = performance.now()
+      if (zone === strum.zone || now - strum.lastNoteAt < MIN_NOTE_GAP_MS) return
+      strum.zone = zone
+      strum.lastNoteAt = now
+      playNote(zone)
+    }
+
     const handlePointerMove = (event: PointerEvent) => {
-      if (!followCursor) return
       const rect = canvas.getBoundingClientRect()
       if (rect.width === 0 || rect.height === 0) return
+
+      // Once a strum starts on the background it keeps sounding, even if the
+      // pointer crosses the card on its way up or down.
+      if (strum.active) strumTo(event.clientY, rect)
+
+      if (!followCursor) return
       const x = ((event.clientX - rect.left) / rect.width) * canvas.width
       const y = ((event.clientY - rect.top) / rect.height) * canvas.height
       if (x < 0 || y < 0 || x > canvas.width || y > canvas.height) {
@@ -579,13 +664,13 @@ export default function LiquidToyBackground({
     // Falling back to the orbiting blob whenever the cursor is gone.
     const releasePointer = () => {
       mouse.active = 0
+      endStrum()
     }
     const handlePointerOut = (event: PointerEvent) => {
       if (!event.relatedTarget) releasePointer()
     }
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!playClickNotes) return
       // Clicks on the card and its links belong to the foreground, not here.
       const target = event.target as HTMLElement | null
       if (target?.closest('[data-foreground-component]')) return
@@ -595,13 +680,18 @@ export default function LiquidToyBackground({
       const y = event.clientY - rect.top
       if (x < 0 || y < 0 || x > rect.width || y > rect.height) return
 
-      playClickNote(y, rect.height)
-    }
+      // Pop the fluid at the point of impact.
+      addPop(
+        (x / rect.width) * canvas.width,
+        canvas.height - (y / rect.height) * canvas.height
+      )
 
-    let animationFrame = 0
-    let running = true
-    const startTime = performance.now()
-    let previousTime = startTime
+      if (!playClickNotes) return
+      strum.active = true
+      strum.zone = noteZoneAt(y, rect.height)
+      strum.lastNoteAt = performance.now()
+      playNote(strum.zone)
+    }
 
     const render = () => {
       if (!running) return
@@ -628,6 +718,7 @@ export default function LiquidToyBackground({
       gl.uniform1f(bufferUniforms.time, time)
       gl.uniform1f(bufferUniforms.timeDelta, timeDelta)
       gl.uniform4f(bufferUniforms.mouse, mouse.x, mouse.y, mouse.active, 0)
+      gl.uniform4fv(bufferUniforms.pops, pops)
       gl.activeTexture(gl.TEXTURE0)
       gl.bindTexture(gl.TEXTURE_3D, noise3D)
       gl.uniform1i(bufferUniforms.channel0, 0)
@@ -680,6 +771,8 @@ export default function LiquidToyBackground({
 
     window.addEventListener('pointermove', handlePointerMove, { passive: true })
     window.addEventListener('pointerdown', handlePointerDown, { passive: true })
+    window.addEventListener('pointerup', endStrum, { passive: true })
+    window.addEventListener('pointercancel', endStrum, { passive: true })
     window.addEventListener('pointerout', handlePointerOut)
     window.addEventListener('blur', releasePointer)
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -693,6 +786,8 @@ export default function LiquidToyBackground({
       cancelAnimationFrame(animationFrame)
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('pointerup', endStrum)
+      window.removeEventListener('pointercancel', endStrum)
       window.removeEventListener('pointerout', handlePointerOut)
       window.removeEventListener('blur', releasePointer)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -720,7 +815,7 @@ export default function LiquidToyBackground({
           data-foreground-component
           className="fixed bottom-3 right-3 z-10 text-[10px] tracking-wide text-black/40 transition-colors hover:text-black/70"
         >
-          &ldquo;Liquid toy&rdquo; shader by Leon Denise
+          &ldquo;Liquid Toy&rdquo; by Leon Denise
         </a>
       )}
     </>

@@ -23,6 +23,7 @@ const VARIANTS: Record<
   ProfileCardVariant,
   {
     card: string;
+    aberration: string;
     logoSrc: string;
     logo: string;
     title: string;
@@ -33,10 +34,14 @@ const VARIANTS: Record<
 > = {
   dark: {
     card: "border-white/20 bg-transparent",
+    aberration:
+      "[text-shadow:-0.5px_0_rgba(255,0,60,0.45),0.5px_0_rgba(0,190,255,0.45)]",
     logoSrc: "/logo_white.svg",
     logo: "[filter:drop-shadow(0_0_8px_rgba(255,255,255,0.6))_drop-shadow(0_0_16px_rgba(255,255,255,0.35))]",
+    // The title sets its own shadow, so the split has to be repeated here or
+    // the glow would replace it.
     title:
-      "text-white [text-shadow:0_0_12px_rgba(255,255,255,0.5),0_0_24px_rgba(255,255,255,0.3)]",
+      "text-white [text-shadow:-1px_0_rgba(255,0,60,0.5),1px_0_rgba(0,190,255,0.5),0_0_12px_rgba(255,255,255,0.5),0_0_24px_rgba(255,255,255,0.3)]",
     subtitle: "text-white/70",
     closeButton:
       "border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white focus-visible:ring-white/40",
@@ -45,9 +50,12 @@ const VARIANTS: Record<
   },
   light: {
     card: "border-black/10 bg-white/55",
+    aberration:
+      "[text-shadow:-0.5px_0_rgba(255,0,60,0.4),0.5px_0_rgba(0,150,255,0.4)]",
     logoSrc: "/logo_dark.svg",
     logo: "[filter:drop-shadow(0_1px_3px_rgba(255,255,255,0.9))]",
-    title: "text-neutral-900",
+    title:
+      "text-neutral-900 [text-shadow:-1px_0_rgba(255,0,60,0.45),1px_0_rgba(0,150,255,0.45)]",
     subtitle: "text-neutral-700",
     closeButton:
       "border-black/15 bg-white/50 text-neutral-900 hover:bg-white/80 hover:text-neutral-900 focus-visible:ring-black/30",
@@ -80,7 +88,7 @@ export default function ProfileCard({
     <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
       <Card
         data-foreground-component
-        className={`w-full select-none max-w-md mx-auto backdrop-blur-lg rounded-2xl p-8 border shadow-2xl gap-0 ${styles.card}
+        className={`w-full select-none max-w-md mx-auto backdrop-blur-lg rounded-2xl p-8 border shadow-2xl gap-0 ${styles.card} ${styles.aberration}
            ${isCardOpen ? "" : "pointer-events-none"}`}
         style={{
           opacity: isCardOpen ? 1 : 0,
@@ -110,7 +118,7 @@ export default function ProfileCard({
                 alt="Profile Picture"
                 width={120}
                 height={120}
-                className={`rounded-none border-2 object-cover shadow-lg transition-colors duration-300 border-none ${styles.logo}`}
+                className={`rounded-none border-2 object-cover transition-colors duration-300 border-none ${styles.logo}`}
               />
             </div>
             <CardTitle
