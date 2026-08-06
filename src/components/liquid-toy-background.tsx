@@ -81,6 +81,19 @@ const MIN_NOTE_GAP_MS = 45
 /** How many clicks can be popping at once before the oldest is recycled. */
 const POP_COUNT = 4
 
+/** Side of the 2D noise texture, sampled one texel per pixel for the dither. */
+const NOISE_2D_SIZE = 256
+
+/**
+ * The fluid grows by resampling its own buffer, so how far it spreads depends
+ * on how many times that happens, not on how far each step moves. Scaling the
+ * step by frame time is therefore not enough: the buffer has to be stepped a
+ * fixed number of times per second, which is what SIM_STEP pins down.
+ */
+const SIM_STEP = 1 / 60
+/** Ceiling on catch-up steps, so a slow device degrades instead of spiralling. */
+const MAX_SIM_STEPS = 3
+
 // Shadertoy "Common" tab. iChannel2 / iChannel3 are unused by this shader.
 const COMMON_GLSL = /* glsl */ `
 // shortcut to sample texture
@@ -110,6 +123,9 @@ uniform vec3 iResolution;
 uniform float iTime;
 uniform float iTimeDelta;
 uniform vec4 iMouse;
+// Where the pointer was on the previous frame, so a fast flick paints the
+// whole path it travelled rather than one dot per frame.
+uniform vec4 iMousePrev;
 uniform sampler3D iChannel0;
 uniform sampler2D iChannel1;
 // Recent clicks: xy = pixel position, z = time of the click, w = slot in use.
@@ -131,12 +147,24 @@ const float fade = .4;
 const float strength = 1.;
 const float range = 5.;
 
+// The flow below is a per-frame displacement, so it is scaled to the frame
+// time to keep the simulation running at one speed on any refresh rate.
+const float referenceFps = 60.;
+
 // click pop
 const float popDuration = .5;
 const float popSpeed = .32;
 const float popThickness = .05;
 const float popRadius = .3;
 const float popPush = 5.;
+
+// distance from p to the segment ab, for painting a stroke as a capsule
+float segmentDistance(vec2 p, vec2 a, vec2 b)
+{
+    vec2 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa,ba)/max(dot(ba,ba), 1e-8), 0., 1.);
+    return length(pa - ba*h);
+}
 
 // fractal brownian motion (layers of multi scale noise)
 vec3 fbm(vec3 p)
@@ -163,12 +191,22 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     // noise
     vec3 spice = fbm(vec3(uv*scale,iTime*speed));
 
-    // draw circle at mouse or in motion
-    float t = iTime*2.;
-    vec2 mouse = (iMouse.xy - iResolution.xy / 2.)/iResolution.y;
-    if (iMouse.z > .5) uv -= mouse;
-    else uv -= vec2(cos(t),sin(t))*.3;
-    float paint = trace(length(uv),.1);
+    // sweep a circle from where the pointer was to where it is now, so the
+    // stroke is continuous however fast it moves; likewise for the idle orbit
+    vec2 from, to;
+    if (iMouse.z > .5)
+    {
+        from = (iMousePrev.xy - iResolution.xy / 2.)/iResolution.y;
+        to   = (iMouse.xy - iResolution.xy / 2.)/iResolution.y;
+    }
+    else
+    {
+        float t = iTime*2.;
+        float tPrev = (iTime - iTimeDelta)*2.;
+        from = vec2(cos(tPrev),sin(tPrev))*.3;
+        to   = vec2(cos(t),sin(t))*.3;
+    }
+    float paint = trace(segmentDistance(centered, from, to),.1);
 
     // pop each recent click: an expanding shockwave ring, plus an outward
     // shove that blows the surrounding fluid away from the impact
@@ -205,11 +243,10 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     spice.x += iTime;
     offset += vec2(cos(spice.x),sin(spice.x));
 
-    // explosion. The advection above runs once per frame, so the pop is scaled
-    // by the frame time to shove the fluid the same distance at any framerate.
-    offset += popOffset * iTimeDelta * 60.;
+    // explosion
+    offset += popOffset;
 
-    uv += strength * offset / aspect / 472.;
+    uv += strength * offset * iTimeDelta * referenceFps / aspect / 472.;
 
     // sample buffer
     vec4 frame = texture(iChannel1, uv);
@@ -251,12 +288,18 @@ ${COMMON_GLSL}
 // fix scalars to be resolution independant
 // (samed speed and look at different frame size)
 
+// dither
+const float ditherScale = ${NOISE_2D_SIZE}.;
+const float ditherStrength = .05;
+
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
 
     // coordinates
     vec2 uv = fragCoord.xy / iResolution.xy;
-    vec3 dither = texture(iChannel1, fragCoord.xy / 1024.).rgb;
+    // one noise texel per pixel, so the dither reads as fine grain rather
+    // than the soft blotches a stretched sample gives
+    vec3 dither = texture(iChannel1, fragCoord.xy / ditherScale).rgb;
 
     // value from buffer A
     vec4 data =  texture(iChannel0, uv);
@@ -284,7 +327,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     color += tint * smoothstep(.15,.0,gray);
 
     // dither
-    color -= dither.x*.1;
+    color -= dither.x*ditherStrength;
 
     // background blend
     vec3 background = vec3(1);
@@ -396,9 +439,10 @@ const createNoise2DTexture = (gl: WebGL2RenderingContext, size: number, random: 
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, data)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-  gl.generateMipmap(gl.TEXTURE_2D)
+  // Nearest, and no mips: the dither samples this one texel per pixel, and
+  // any filtering there would only smear the grain back into blotches.
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
   gl.bindTexture(gl.TEXTURE_2D, null)
 
   return texture
@@ -486,6 +530,7 @@ export default function LiquidToyBackground({
       time: uniform(bufferProgram, 'iTime'),
       timeDelta: uniform(bufferProgram, 'iTimeDelta'),
       mouse: uniform(bufferProgram, 'iMouse'),
+      mousePrev: uniform(bufferProgram, 'iMousePrev'),
       channel0: uniform(bufferProgram, 'iChannel0'),
       channel1: uniform(bufferProgram, 'iChannel1'),
       pops: uniform(bufferProgram, 'iPops[0]'),
@@ -515,7 +560,7 @@ export default function LiquidToyBackground({
 
     const random = createRandom(0x5eed1071)
     const noise3D = createNoise3DTexture(gl, 32, random)
-    const noise2D = createNoise2DTexture(gl, 256, random)
+    const noise2D = createNoise2DTexture(gl, NOISE_2D_SIZE, random)
 
     // Half float needs a color-buffer extension to be renderable; without one
     // the buffer falls back to 8 bit, which the shader tolerates.
@@ -528,6 +573,8 @@ export default function LiquidToyBackground({
     let targets: [RenderTarget, RenderTarget] | null = null
     let bufferWidth = 0
     let bufferHeight = 0
+    // Set whenever the canvas needs redrawing regardless of simulation steps.
+    let presentPending = true
 
     const disposeTargets = () => {
       if (!targets) return
@@ -579,6 +626,9 @@ export default function LiquidToyBackground({
 
       bufferWidth = width
       bufferHeight = height
+      // The buffers were just cleared, so the canvas has to be redrawn even if
+      // no simulation step lands on this frame.
+      presentPending = true
       return true
     }
 
@@ -604,12 +654,19 @@ export default function LiquidToyBackground({
     let animationFrame = 0
     let running = true
     const startTime = performance.now()
-    let previousTime = startTime
-    const elapsed = () => (performance.now() - startTime) / 1000
+    // Simulation clock. It only ever advances in whole SIM_STEPs, so the pops
+    // and the idle orbit stay in lockstep with the steps that were taken.
+    let simTime = 0
+    let accumulator = 0
+    let lastFrameTime = startTime
+    const elapsed = () => simTime
 
     // iMouse: xy in pixels with a bottom-left origin, z > 0 while "pressed".
     // Hover stands in for the press so the blob tracks the cursor on a page.
     const mouse = { x: canvas.width / 2, y: canvas.height / 2, active: 0 }
+    // The pointer as of the last rendered frame. The stroke is swept between
+    // the two, so it stays unbroken no matter how far the pointer moved.
+    const mousePrev = { x: mouse.x, y: mouse.y }
 
     // Ring buffer of recent clicks, read by the pop loop in Buffer A.
     const pops = new Float32Array(POP_COUNT * 4)
@@ -654,6 +711,12 @@ export default function LiquidToyBackground({
       if (x < 0 || y < 0 || x > canvas.width || y > canvas.height) {
         mouse.active = 0
         return
+      }
+      // Re-entering the canvas must not sweep a stroke in from wherever the
+      // pointer was last seen.
+      if (!mouse.active) {
+        mousePrev.x = x
+        mousePrev.y = canvas.height - y
       }
       mouse.x = x
       // Flip: CSS grows downwards, gl_FragCoord grows upwards.
@@ -700,46 +763,89 @@ export default function LiquidToyBackground({
         running = false
         return
       }
+      if (!targets) return
 
       const now = performance.now()
-      const time = (now - startTime) / 1000
-      // Clamped so a backgrounded tab does not wipe the buffer on its first frame back.
-      const timeDelta = Math.min(0.1, Math.max(0, (now - previousTime) / 1000))
-      previousTime = now
 
-      if (!targets) return
-      const [read, write] = targets
+      // Feed the accumulator and take as many whole steps as it affords. The
+      // leftover stays for next frame, so the step count per second is the
+      // same at 30Hz and at 280Hz.
+      accumulator += Math.max(0, (now - lastFrameTime) / 1000)
+      lastFrameTime = now
+      const steps = Math.min(Math.floor(accumulator / SIM_STEP), MAX_SIM_STEPS)
+      accumulator -= steps * SIM_STEP
+      // After a stall (or a backgrounded tab) drop the backlog rather than
+      // spending the next several frames grinding through it.
+      if (accumulator > SIM_STEP * MAX_SIM_STEPS) accumulator = 0
 
-      // --- Buffer A: advect and fade the fake fluid heightmap ---
-      gl.bindFramebuffer(gl.FRAMEBUFFER, write.framebuffer)
-      gl.viewport(0, 0, bufferWidth, bufferHeight)
-      gl.useProgram(bufferProgram)
-      gl.uniform3f(bufferUniforms.resolution, bufferWidth, bufferHeight, 1)
-      gl.uniform1f(bufferUniforms.time, time)
-      gl.uniform1f(bufferUniforms.timeDelta, timeDelta)
-      gl.uniform4f(bufferUniforms.mouse, mouse.x, mouse.y, mouse.active, 0)
-      gl.uniform4fv(bufferUniforms.pops, pops)
-      gl.activeTexture(gl.TEXTURE0)
-      gl.bindTexture(gl.TEXTURE_3D, noise3D)
-      gl.uniform1i(bufferUniforms.channel0, 0)
-      gl.activeTexture(gl.TEXTURE1)
-      gl.bindTexture(gl.TEXTURE_2D, read.texture)
-      gl.uniform1i(bufferUniforms.channel1, 1)
-      gl.drawArrays(gl.TRIANGLES, 0, 3)
+      let pair = targets
+      for (let step = 0; step < steps; step++) {
+        simTime += SIM_STEP
+        const [read, write] = pair
 
-      // The freshly written buffer becomes the source for the next frame.
-      targets = [write, read]
+        // Walk the pointer across the sub-steps, so one frame of movement is
+        // laid down as a series of short strokes rather than a single jump.
+        const from = step / steps
+        const to = (step + 1) / steps
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, write.framebuffer)
+        gl.viewport(0, 0, bufferWidth, bufferHeight)
+        gl.useProgram(bufferProgram)
+        gl.uniform3f(bufferUniforms.resolution, bufferWidth, bufferHeight, 1)
+        gl.uniform1f(bufferUniforms.time, simTime)
+        gl.uniform1f(bufferUniforms.timeDelta, SIM_STEP)
+        gl.uniform4f(
+          bufferUniforms.mousePrev,
+          mousePrev.x + (mouse.x - mousePrev.x) * from,
+          mousePrev.y + (mouse.y - mousePrev.y) * from,
+          mouse.active,
+          0
+        )
+        gl.uniform4f(
+          bufferUniforms.mouse,
+          mousePrev.x + (mouse.x - mousePrev.x) * to,
+          mousePrev.y + (mouse.y - mousePrev.y) * to,
+          mouse.active,
+          0
+        )
+        gl.uniform4fv(bufferUniforms.pops, pops)
+        gl.activeTexture(gl.TEXTURE0)
+        gl.bindTexture(gl.TEXTURE_3D, noise3D)
+        gl.uniform1i(bufferUniforms.channel0, 0)
+        gl.activeTexture(gl.TEXTURE1)
+        gl.bindTexture(gl.TEXTURE_2D, read.texture)
+        gl.uniform1i(bufferUniforms.channel1, 1)
+        gl.drawArrays(gl.TRIANGLES, 0, 3)
+
+        // The freshly written buffer becomes the source for the next step.
+        pair = [write, read]
+      }
+      targets = pair
+
+      if (steps > 0) {
+        // The stroke has been swept up to here; the next frame starts from it.
+        mousePrev.x = mouse.x
+        mousePrev.y = mouse.y
+      }
+
+      // Nothing moved and nothing was reallocated, so the canvas already shows
+      // the current state. This is the common case above 60Hz.
+      if (steps === 0 && !presentPending) {
+        animationFrame = requestAnimationFrame(render)
+        return
+      }
+      presentPending = false
 
       // --- Image: shade the heightmap ---
       gl.bindFramebuffer(gl.FRAMEBUFFER, null)
       gl.viewport(0, 0, canvas.width, canvas.height)
       gl.useProgram(imageProgram)
       gl.uniform3f(imageUniforms.resolution, canvas.width, canvas.height, 1)
-      gl.uniform1f(imageUniforms.time, time)
+      gl.uniform1f(imageUniforms.time, simTime)
       gl.uniform4f(imageUniforms.mouse, mouse.x, mouse.y, mouse.active, 0)
       gl.uniform1f(imageUniforms.debugLayers, showDebugLayers ? 1 : 0)
       gl.activeTexture(gl.TEXTURE0)
-      gl.bindTexture(gl.TEXTURE_2D, write.texture)
+      gl.bindTexture(gl.TEXTURE_2D, pair[0].texture)
       gl.uniform1i(imageUniforms.channel0, 0)
       gl.activeTexture(gl.TEXTURE1)
       gl.bindTexture(gl.TEXTURE_2D, noise2D)
@@ -755,7 +861,9 @@ export default function LiquidToyBackground({
         cancelAnimationFrame(animationFrame)
       } else if (!running) {
         running = true
-        previousTime = performance.now()
+        // Start a fresh frame interval so the time spent hidden is not
+        // charged to the accumulator.
+        lastFrameTime = performance.now()
         animationFrame = requestAnimationFrame(render)
       }
     }
