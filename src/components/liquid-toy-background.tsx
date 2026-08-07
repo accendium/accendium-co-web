@@ -85,14 +85,11 @@ const POP_COUNT = 4
 const NOISE_2D_SIZE = 256
 
 /**
- * The fluid grows by resampling its own buffer, so how far it spreads depends
- * on how many times that happens, not on how far each step moves. Scaling the
- * step by frame time is therefore not enough: the buffer has to be stepped a
- * fixed number of times per second, which is what SIM_STEP pins down.
+ * Longest frame the simulation will integrate in one go. Past this the flow
+ * runs slow rather than taking a step so large it overshoots (see maxStep in
+ * the Buffer A shader), which is the right trade for a background.
  */
-const SIM_STEP = 1 / 60
-/** Ceiling on catch-up steps, so a slow device degrades instead of spiralling. */
-const MAX_SIM_STEPS = 3
+const MAX_FRAME_TIME = 0.1
 
 // Shadertoy "Common" tab. iChannel2 / iChannel3 are unused by this shader.
 const COMMON_GLSL = /* glsl */ `
@@ -150,6 +147,10 @@ const float range = 5.;
 // The flow below is a per-frame displacement, so it is scaled to the frame
 // time to keep the simulation running at one speed on any refresh rate.
 const float referenceFps = 60.;
+// A step may not carry further than the stencil the normal was measured over
+// (range/472), or the advection samples past where its own gradient is valid
+// and the flow destabilises. This only bites below ~25fps.
+const float maxStep = 2.5;
 
 // click pop
 const float popDuration = .5;
@@ -246,7 +247,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     // explosion
     offset += popOffset;
 
-    uv += strength * offset * iTimeDelta * referenceFps / aspect / 472.;
+    float step = min(iTimeDelta * referenceFps, maxStep);
+    uv += strength * offset * step / aspect / 472.;
 
     // sample buffer
     vec4 frame = texture(iChannel1, uv);
@@ -573,8 +575,6 @@ export default function LiquidToyBackground({
     let targets: [RenderTarget, RenderTarget] | null = null
     let bufferWidth = 0
     let bufferHeight = 0
-    // Set whenever the canvas needs redrawing regardless of simulation steps.
-    let presentPending = true
 
     const disposeTargets = () => {
       if (!targets) return
@@ -626,9 +626,6 @@ export default function LiquidToyBackground({
 
       bufferWidth = width
       bufferHeight = height
-      // The buffers were just cleared, so the canvas has to be redrawn even if
-      // no simulation step lands on this frame.
-      presentPending = true
       return true
     }
 
@@ -654,12 +651,8 @@ export default function LiquidToyBackground({
     let animationFrame = 0
     let running = true
     const startTime = performance.now()
-    // Simulation clock. It only ever advances in whole SIM_STEPs, so the pops
-    // and the idle orbit stay in lockstep with the steps that were taken.
-    let simTime = 0
-    let accumulator = 0
-    let lastFrameTime = startTime
-    const elapsed = () => simTime
+    let previousTime = startTime
+    const elapsed = () => (performance.now() - startTime) / 1000
 
     // iMouse: xy in pixels with a bottom-left origin, z > 0 while "pressed".
     // Hover stands in for the press so the blob tracks the cursor on a page.
@@ -766,86 +759,51 @@ export default function LiquidToyBackground({
       if (!targets) return
 
       const now = performance.now()
+      const time = (now - startTime) / 1000
+      // Clamped so a stall (or a backgrounded tab) cannot advect the fluid
+      // halfway across the screen on the first frame back.
+      const timeDelta = Math.min(MAX_FRAME_TIME, Math.max(0, (now - previousTime) / 1000))
+      previousTime = now
 
-      // Feed the accumulator and take as many whole steps as it affords. The
-      // leftover stays for next frame, so the step count per second is the
-      // same at 30Hz and at 280Hz.
-      accumulator += Math.max(0, (now - lastFrameTime) / 1000)
-      lastFrameTime = now
-      const steps = Math.min(Math.floor(accumulator / SIM_STEP), MAX_SIM_STEPS)
-      accumulator -= steps * SIM_STEP
-      // After a stall (or a backgrounded tab) drop the backlog rather than
-      // spending the next several frames grinding through it.
-      if (accumulator > SIM_STEP * MAX_SIM_STEPS) accumulator = 0
+      // One step per displayed frame: the flow updates as often as the monitor
+      // refreshes, and frame time is what keeps its speed constant.
+      const [read, write] = targets
 
-      let pair = targets
-      for (let step = 0; step < steps; step++) {
-        simTime += SIM_STEP
-        const [read, write] = pair
+      // --- Buffer A: advect and fade the fake fluid heightmap ---
+      gl.bindFramebuffer(gl.FRAMEBUFFER, write.framebuffer)
+      gl.viewport(0, 0, bufferWidth, bufferHeight)
+      gl.useProgram(bufferProgram)
+      gl.uniform3f(bufferUniforms.resolution, bufferWidth, bufferHeight, 1)
+      gl.uniform1f(bufferUniforms.time, time)
+      gl.uniform1f(bufferUniforms.timeDelta, timeDelta)
+      gl.uniform4f(bufferUniforms.mousePrev, mousePrev.x, mousePrev.y, mouse.active, 0)
+      gl.uniform4f(bufferUniforms.mouse, mouse.x, mouse.y, mouse.active, 0)
+      gl.uniform4fv(bufferUniforms.pops, pops)
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_3D, noise3D)
+      gl.uniform1i(bufferUniforms.channel0, 0)
+      gl.activeTexture(gl.TEXTURE1)
+      gl.bindTexture(gl.TEXTURE_2D, read.texture)
+      gl.uniform1i(bufferUniforms.channel1, 1)
+      gl.drawArrays(gl.TRIANGLES, 0, 3)
 
-        // Walk the pointer across the sub-steps, so one frame of movement is
-        // laid down as a series of short strokes rather than a single jump.
-        const from = step / steps
-        const to = (step + 1) / steps
+      // The freshly written buffer becomes the source for the next frame.
+      targets = [write, read]
 
-        gl.bindFramebuffer(gl.FRAMEBUFFER, write.framebuffer)
-        gl.viewport(0, 0, bufferWidth, bufferHeight)
-        gl.useProgram(bufferProgram)
-        gl.uniform3f(bufferUniforms.resolution, bufferWidth, bufferHeight, 1)
-        gl.uniform1f(bufferUniforms.time, simTime)
-        gl.uniform1f(bufferUniforms.timeDelta, SIM_STEP)
-        gl.uniform4f(
-          bufferUniforms.mousePrev,
-          mousePrev.x + (mouse.x - mousePrev.x) * from,
-          mousePrev.y + (mouse.y - mousePrev.y) * from,
-          mouse.active,
-          0
-        )
-        gl.uniform4f(
-          bufferUniforms.mouse,
-          mousePrev.x + (mouse.x - mousePrev.x) * to,
-          mousePrev.y + (mouse.y - mousePrev.y) * to,
-          mouse.active,
-          0
-        )
-        gl.uniform4fv(bufferUniforms.pops, pops)
-        gl.activeTexture(gl.TEXTURE0)
-        gl.bindTexture(gl.TEXTURE_3D, noise3D)
-        gl.uniform1i(bufferUniforms.channel0, 0)
-        gl.activeTexture(gl.TEXTURE1)
-        gl.bindTexture(gl.TEXTURE_2D, read.texture)
-        gl.uniform1i(bufferUniforms.channel1, 1)
-        gl.drawArrays(gl.TRIANGLES, 0, 3)
-
-        // The freshly written buffer becomes the source for the next step.
-        pair = [write, read]
-      }
-      targets = pair
-
-      if (steps > 0) {
-        // The stroke has been swept up to here; the next frame starts from it.
-        mousePrev.x = mouse.x
-        mousePrev.y = mouse.y
-      }
-
-      // Nothing moved and nothing was reallocated, so the canvas already shows
-      // the current state. This is the common case above 60Hz.
-      if (steps === 0 && !presentPending) {
-        animationFrame = requestAnimationFrame(render)
-        return
-      }
-      presentPending = false
+      // The stroke has been swept up to here; the next frame starts from it.
+      mousePrev.x = mouse.x
+      mousePrev.y = mouse.y
 
       // --- Image: shade the heightmap ---
       gl.bindFramebuffer(gl.FRAMEBUFFER, null)
       gl.viewport(0, 0, canvas.width, canvas.height)
       gl.useProgram(imageProgram)
       gl.uniform3f(imageUniforms.resolution, canvas.width, canvas.height, 1)
-      gl.uniform1f(imageUniforms.time, simTime)
+      gl.uniform1f(imageUniforms.time, time)
       gl.uniform4f(imageUniforms.mouse, mouse.x, mouse.y, mouse.active, 0)
       gl.uniform1f(imageUniforms.debugLayers, showDebugLayers ? 1 : 0)
       gl.activeTexture(gl.TEXTURE0)
-      gl.bindTexture(gl.TEXTURE_2D, pair[0].texture)
+      gl.bindTexture(gl.TEXTURE_2D, write.texture)
       gl.uniform1i(imageUniforms.channel0, 0)
       gl.activeTexture(gl.TEXTURE1)
       gl.bindTexture(gl.TEXTURE_2D, noise2D)
@@ -862,8 +820,8 @@ export default function LiquidToyBackground({
       } else if (!running) {
         running = true
         // Start a fresh frame interval so the time spent hidden is not
-        // charged to the accumulator.
-        lastFrameTime = performance.now()
+        // charged to the first frame back.
+        previousTime = performance.now()
         animationFrame = requestAnimationFrame(render)
       }
     }
