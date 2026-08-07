@@ -12,6 +12,50 @@ import { X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
+export type ProfileCardVariant = "dark" | "light";
+
+/**
+ * Every colour is spelled out per variant rather than left to the theme
+ * tokens, so the card reads correctly on top of whichever background it is
+ * layered over regardless of the document theme.
+ */
+const VARIANTS: Record<
+  ProfileCardVariant,
+  {
+    card: string;
+    logoSrc: string;
+    logo: string;
+    title: string;
+    subtitle: string;
+    closeButton: string;
+    linkButton: string;
+  }
+> = {
+  dark: {
+    card: "border-white/20 bg-transparent",
+    logoSrc: "/logo_white.svg",
+    logo: "[filter:drop-shadow(0_0_8px_rgba(255,255,255,0.6))_drop-shadow(0_0_16px_rgba(255,255,255,0.35))]",
+    title:
+      "text-white [text-shadow:0_0_12px_rgba(255,255,255,0.5),0_0_24px_rgba(255,255,255,0.3)]",
+    subtitle: "text-white/70",
+    closeButton:
+      "border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white focus-visible:ring-white/40",
+    linkButton:
+      "border-white/30 bg-transparent text-white hover:border-white hover:bg-white/10 hover:text-white focus-visible:ring-white/40",
+  },
+  light: {
+    card: "border-black/10 bg-white/55",
+    logoSrc: "/logo_dark.svg",
+    logo: "[filter:drop-shadow(0_1px_3px_rgba(255,255,255,0.9))]",
+    title: "text-neutral-900",
+    subtitle: "text-neutral-700",
+    closeButton:
+      "border-black/15 bg-white/50 text-neutral-900 hover:bg-white/80 hover:text-neutral-900 focus-visible:ring-black/30",
+    linkButton:
+      "border-black/15 bg-white/50 text-neutral-900 hover:border-black/40 hover:bg-white/80 hover:text-neutral-900 focus-visible:ring-black/30",
+  },
+};
+
 type ProfileCardProps = {
   links: Array<{
     name: string;
@@ -20,19 +64,26 @@ type ProfileCardProps = {
   }>;
   isCardOpen?: boolean;
   setIsCardOpen?: (open: boolean) => void;
+  /** Colour scheme to render against the page background (default: dark). */
+  variant?: ProfileCardVariant;
 };
 
 export default function ProfileCard({
   links,
   isCardOpen,
   setIsCardOpen,
+  variant = "dark",
 }: ProfileCardProps) {
+  const styles = VARIANTS[variant];
+
   return (
-    <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
+    // The wrapper spans the viewport purely to centre the card, so it must not
+    // swallow clicks meant for whatever sits behind it.
+    <div className="relative z-10 min-h-screen flex items-center justify-center p-4 pointer-events-none">
       <Card
         data-foreground-component
-        className={`w-full select-none max-w-md mx-auto backdrop-blur-lg rounded-2xl p-8 border shadow-2xl border-white/20 bg-transparent gap-0
-           ${isCardOpen ? "" : "pointer-events-none"}`}
+        className={`w-full select-none max-w-md mx-auto backdrop-blur-lg rounded-2xl p-8 border shadow-2xl gap-0 ${styles.card}
+           ${isCardOpen ? "pointer-events-auto" : "pointer-events-none"}`}
         style={{
           opacity: isCardOpen ? 1 : 0,
           transition: "transform 300ms ease, opacity 180ms ease",
@@ -46,7 +97,7 @@ export default function ProfileCard({
               variant="outline"
               size="icon-sm"
               onClick={() => setIsCardOpen?.(false)}
-              className="border-white/20 text-white hover:bg-white/10 hover:text-white"
+              className={styles.closeButton}
               aria-label="Close profile card"
             >
               <X size={16} />
@@ -57,17 +108,19 @@ export default function ProfileCard({
           <div className="text-center">
             <div className="relative w-[120px] h-[120px] mx-auto mb-6">
               <Image
-                src="/logo_white.svg"
+                src={styles.logoSrc}
                 alt="Profile Picture"
                 width={120}
                 height={120}
-                className="rounded-none border-2 object-cover shadow-lg transition-colors duration-300 border-none [filter:drop-shadow(0_0_8px_rgba(255,255,255,0.6))_drop-shadow(0_0_16px_rgba(255,255,255,0.35))]"
+                className={`rounded-none border-2 object-cover transition-colors duration-300 border-none ${styles.logo}`}
               />
             </div>
-            <CardTitle className="text-2xl font-sans text-white mb-2 [text-shadow:0_0_12px_rgba(255,255,255,0.5),0_0_24px_rgba(255,255,255,0.3)]">
+            <CardTitle
+              className={`text-2xl font-sans mb-2 ${styles.title}`}
+            >
               accendium.
             </CardTitle>
-            <p className="text-sm font-sans text-white/70">
+            <p className={`text-sm font-sans ${styles.subtitle}`}>
               developer and creator.
             </p>
           </div>
@@ -79,7 +132,7 @@ export default function ProfileCard({
                 <Button
                   key={index}
                   variant="outline"
-                  className="w-full justify-center gap-3 py-3.5 px-6 rounded-xl backdrop-blur-sm border-white/30 text-white hover:border-white hover:bg-white/10 hover:text-white hover:shadow-lg font-medium font-sans"
+                  className={`w-full justify-center gap-3 py-3.5 px-6 rounded-xl backdrop-blur-sm hover:shadow-lg font-medium font-sans ${styles.linkButton}`}
                   asChild
                 >
                   <Link
