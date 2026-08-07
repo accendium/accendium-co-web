@@ -675,10 +675,28 @@ export default function LiquidToyBackground({
 
     // A strum: hold the pointer down and sweep it through the note zones.
     const strum = { active: false, zone: -1, lastNoteAt: 0 }
+    // Tracked separately from the strum, which the notes can be turned off
+    // independently of: this is what suppresses touch scrolling mid-drag.
+    let dragging = false
 
     const endStrum = () => {
       strum.active = false
       strum.zone = -1
+    }
+
+    const endDrag = (event: PointerEvent) => {
+      dragging = false
+      endStrum()
+      // A finger has no hover, so lifting it hands the blob back to the orbit.
+      if (event.pointerType !== 'mouse') mouse.active = 0
+    }
+
+    // Touch drags scroll the page by default, which both moves the page and
+    // cancels the pointer stream the stroke is drawn from. Only a drag that
+    // began on the background is suppressed, so the page still scrolls
+    // normally everywhere else.
+    const handleTouchMove = (event: TouchEvent) => {
+      if (dragging && event.cancelable) event.preventDefault()
     }
 
     const strumTo = (clientY: number, rect: DOMRect) => {
@@ -717,9 +735,12 @@ export default function LiquidToyBackground({
       mouse.active = 1
     }
 
-    // Falling back to the orbiting blob whenever the cursor is gone.
+    // Falling back to the orbiting blob whenever the cursor is gone. Clearing
+    // the drag here too, so a pointer lost off-window cannot leave touch
+    // scrolling suppressed.
     const releasePointer = () => {
       mouse.active = 0
+      dragging = false
       endStrum()
     }
     const handlePointerOut = (event: PointerEvent) => {
@@ -735,6 +756,17 @@ export default function LiquidToyBackground({
       const x = event.clientX - rect.left
       const y = event.clientY - rect.top
       if (x < 0 || y < 0 || x > rect.width || y > rect.height) return
+
+      dragging = true
+      // A touch reports no position until it lands, so seed the stroke here or
+      // the first move sweeps in from wherever the pointer was last seen.
+      if (!mouse.active) {
+        mouse.x = (x / rect.width) * canvas.width
+        mouse.y = canvas.height - (y / rect.height) * canvas.height
+        mousePrev.x = mouse.x
+        mousePrev.y = mouse.y
+        mouse.active = 1
+      }
 
       // Pop the fluid at the point of impact.
       addPop(
@@ -837,8 +869,10 @@ export default function LiquidToyBackground({
 
     window.addEventListener('pointermove', handlePointerMove, { passive: true })
     window.addEventListener('pointerdown', handlePointerDown, { passive: true })
-    window.addEventListener('pointerup', endStrum, { passive: true })
-    window.addEventListener('pointercancel', endStrum, { passive: true })
+    window.addEventListener('pointerup', endDrag, { passive: true })
+    window.addEventListener('pointercancel', endDrag, { passive: true })
+    // Not passive: this one has to be able to preventDefault.
+    window.addEventListener('touchmove', handleTouchMove, { passive: false })
     window.addEventListener('pointerout', handlePointerOut)
     window.addEventListener('blur', releasePointer)
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -852,8 +886,9 @@ export default function LiquidToyBackground({
       cancelAnimationFrame(animationFrame)
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerdown', handlePointerDown)
-      window.removeEventListener('pointerup', endStrum)
-      window.removeEventListener('pointercancel', endStrum)
+      window.removeEventListener('pointerup', endDrag)
+      window.removeEventListener('pointercancel', endDrag)
+      window.removeEventListener('touchmove', handleTouchMove)
       window.removeEventListener('pointerout', handlePointerOut)
       window.removeEventListener('blur', releasePointer)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -879,7 +914,7 @@ export default function LiquidToyBackground({
           target="_blank"
           rel="noopener noreferrer"
           data-foreground-component
-          className="fixed bottom-3 right-3 z-10 text-[10px] tracking-wide text-black/40 transition-colors hover:text-black/70"
+          className="fixed bottom-3 right-3 z-30 text-[10px] tracking-wide text-black/40 transition-colors hover:text-black/70"
         >
           &ldquo;Liquid Toy&rdquo; by Leon Denise
         </a>

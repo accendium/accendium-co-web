@@ -77,11 +77,13 @@ export default function ProfileCard({
   const styles = VARIANTS[variant];
 
   return (
-    <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
+    // The wrapper spans the viewport purely to centre the card, so it must not
+    // swallow clicks meant for whatever sits behind it.
+    <div className="relative z-10 min-h-screen flex items-center justify-center p-4 pointer-events-none">
       <Card
         data-foreground-component
         className={`w-full select-none max-w-md mx-auto backdrop-blur-lg rounded-2xl p-8 border shadow-2xl gap-0 ${styles.card}
-           ${isCardOpen ? "" : "pointer-events-none"}`}
+           ${isCardOpen ? "pointer-events-auto" : "pointer-events-none"}`}
         style={{
           opacity: isCardOpen ? 1 : 0,
           transition: "transform 300ms ease, opacity 180ms ease",
