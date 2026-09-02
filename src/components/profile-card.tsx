@@ -259,21 +259,30 @@ export default function ProfileCard({
       <Card
         ref={cardRef}
         data-foreground-component
-        className={`w-full select-none max-w-md mx-auto backdrop-blur-lg rounded-2xl p-8 border shadow-2xl gap-0 ${styles.card}
+        className={`w-full select-none max-w-md mx-auto backdrop-blur-lg supports-[-moz-appearance:none]:backdrop-blur-none rounded-2xl p-8 border shadow-2xl gap-0 ${styles.card}
            ${isCardOpen ? "pointer-events-auto" : "pointer-events-none"}`}
         style={{
           visibility: waiting ? "hidden" : "visible",
           opacity: isCardOpen && !waiting ? 1 : 0,
           // Held blurred while it waits, which is the state the reveal
-          // transitions out of.
-          filter: waiting ? `blur(${ENTRANCE_BLUR})` : "blur(0px)",
+          // transitions out of, then dropped entirely once it has arrived.
+          // A filter left on the card — even a no-op blur(0px) — makes it its
+          // own backdrop root, and Firefox then has nothing behind the glass
+          // to frost. Chrome is happy either way, so this only shows up there.
+          filter: waiting
+            ? `blur(${ENTRANCE_BLUR})`
+            : phase === "done"
+              ? "none"
+              : "blur(0px)",
           transition:
             phase === "revealing"
               ? `opacity ${ENTRANCE_DURATION_MS}ms ${ENTRANCE_EASING}, filter ${ENTRANCE_DURATION_MS}ms ${ENTRANCE_EASING}`
               : "opacity 180ms ease",
           // The float and the lean are written straight to the transform each
           // frame, with their own easing, so nothing may transition it here.
-          willChange: "transform",
+          // No will-change either: it buys nothing on an element that is
+          // already being transformed every frame, and it is one more thing
+          // that can cost the card its backdrop.
         }}
       >
         <CardHeader className="pb-4 pr-0">
