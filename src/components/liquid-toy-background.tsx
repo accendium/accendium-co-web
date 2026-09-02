@@ -13,9 +13,10 @@
  *   - iChannel0 of Buffer A ("RGBA Noise3D") and iChannel1 of Image ("RGBA Noise
  *     Medium") are Shadertoy assets, so they are generated procedurally here as
  *     seeded uniform RGBA noise (32x32x32 3D and 256x256 2D, both wrapping).
- *   - iMouse is driven by hover instead of click-drag so the blob follows the
- *     cursor on a web page; it falls back to the original orbiting motion when
- *     the pointer leaves the window.
+ *   - iMouse is driven by pressing the background, so the blob follows the
+ *     cursor only while it is held down; a short cooldown after the release
+ *     hands it back to the original orbiting motion, which spirals out of the
+ *     middle of the screen rather than snapping in at full radius.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -25,7 +26,7 @@ type LiquidToyBackgroundProps = {
   className?: string
   /** Device pixel ratio cap. Lower it to trade sharpness for performance. */
   maxPixelRatio?: number
-  /** Follow the cursor while it is over the page (default: true). */
+  /** Follow the cursor while the background is held down (default: true). */
   followCursor?: boolean
   /**
    * Enables the original shader's debug view: with this on, hovering the left
@@ -91,6 +92,19 @@ const NOISE_2D_SIZE = 256
  */
 const MAX_FRAME_TIME = 0.1
 
+/**
+ * How long the background stays still after the pointer lets go before the
+ * idle orbit spirals back out of the middle. Each press restarts this.
+ */
+const IDLE_RESUME_DELAY = 1
+
+/**
+ * A click shorter than this keeps hold of the blob, in place, for the rest of
+ * it: a tap is otherwise gone before it has finished swelling in, and barely
+ * marks the fluid at all.
+ */
+const MIN_PRESS_HOLD = 0.4
+
 // Shadertoy "Common" tab. iChannel2 / iChannel3 are unused by this shader.
 const COMMON_GLSL = /* glsl */ `
 // shortcut to sample texture
@@ -123,6 +137,11 @@ uniform vec4 iMouse;
 // Where the pointer was on the previous frame, so a fast flick paints the
 // whole path it travelled rather than one dot per frame.
 uniform vec4 iMousePrev;
+// Seconds the idle orbit has been running, or negative while the pointer
+// holds the blob and through the cooldown that follows a release.
+uniform float iIdleAge;
+// Seconds the current press has been held, for the same fade-in.
+uniform float iPressAge;
 uniform sampler3D iChannel0;
 uniform sampler2D iChannel1;
 // Recent clicks: xy = pixel position, z = time of the click, w = slot in use.
@@ -138,7 +157,15 @@ ${COMMON_GLSL}
 // Playing with shading with a fake fluid heightmap
 
 const float speed = .01;
-const float scale = .1;
+const float circleSpeed = 0.8;
+const float circleRadius = .3;
+// The idle orbit spirals out from the centre over this many seconds, and
+// fades in over the first of them so it does not blink into existence.
+const float circleGrow = 2.6;
+const float circleFadeIn = .8;
+// A press swells in the same way, at twice the speed.
+const float pressFadeIn = .2;
+const float scale = .2;
 const float falloff = 3.;
 const float fade = .4;
 const float strength = 1.;
@@ -194,39 +221,50 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
     // sweep a circle from where the pointer was to where it is now, so the
     // stroke is continuous however fast it moves; likewise for the idle orbit
-    vec2 from, to;
+    float paint = 0.;
     if (iMouse.z > .5)
     {
-        from = (iMousePrev.xy - iResolution.xy / 2.)/iResolution.y;
-        to   = (iMouse.xy - iResolution.xy / 2.)/iResolution.y;
+        vec2 from = (iMousePrev.xy - iResolution.xy / 2.)/iResolution.y;
+        vec2 to   = (iMouse.xy - iResolution.xy / 2.)/iResolution.y;
+        // Swelling out of nothing rather than landing at full size, the way
+        // the orbit opens up.
+        paint = trace(segmentDistance(centered, from, to),.1)
+              * ss(0., pressFadeIn, iPressAge);
     }
-    else
+    else if (iIdleAge >= 0.)
     {
-        float t = iTime*2.;
-        float tPrev = (iTime - iTimeDelta)*2.;
-        from = vec2(cos(tPrev),sin(tPrev))*.3;
-        to   = vec2(cos(t),sin(t))*.3;
+        // Coming back from a press, the orbit opens out of the middle of the
+        // screen on a spiral instead of reappearing at its full radius.
+        float agePrev = max(iIdleAge - iTimeDelta, 0.);
+        float radius = circleRadius * ss(0., circleGrow, iIdleAge);
+        float radiusPrev = circleRadius * ss(0., circleGrow, agePrev);
+        float t = iTime*2.*circleSpeed;
+        float tPrev = (iTime - iTimeDelta)*2.*circleSpeed;
+        vec2 from = vec2(cos(tPrev),sin(tPrev))*radiusPrev;
+        vec2 to   = vec2(cos(t),sin(t))*radius;
+        paint = trace(segmentDistance(centered, from, to),.1)
+              * ss(0., circleFadeIn, iIdleAge);
     }
-    float paint = trace(segmentDistance(centered, from, to),.1);
 
     // pop each recent click: an expanding shockwave ring, plus an outward
-    // shove that blows the surrounding fluid away from the impact
-    float pop = 0.;
-    vec2 popOffset = vec2(0);
-    for (int index = 0; index < POP_COUNT; ++index)
-    {
-        vec4 popData = iPops[index];
-        float age = iTime - popData.z;
-        if (popData.w < .5 || age < 0. || age > popDuration) continue;
-
-        float decay = 1. - age/popDuration;
-        vec2 delta = centered - (popData.xy - iResolution.xy / 2.)/iResolution.y;
-        float dist = length(delta);
-
-        pop = max(pop, trace(abs(dist - age*popSpeed), popThickness) * decay);
-        popOffset += normalize(delta + 1e-6) * ss(popRadius, 0., dist) * decay*decay * popPush;
-    }
-    paint = max(paint, pop);
+    // shove that blows the surrounding fluid away from the impact.
+    // Shelved for now: the explosion reads badly against the rest of the flow.
+    // vec2 popOffset = vec2(0);
+    // float pop = 0.;
+    // for (int index = 0; index < POP_COUNT; ++index)
+    // {
+    //     vec4 popData = iPops[index];
+    //     float age = iTime - popData.z;
+    //     if (popData.w < .5 || age < 0. || age > popDuration) continue;
+    //
+    //     float decay = 1. - age/popDuration;
+    //     vec2 delta = centered - (popData.xy - iResolution.xy / 2.)/iResolution.y;
+    //     float dist = length(delta);
+    //
+    //     pop = max(pop, trace(abs(dist - age*popSpeed), popThickness) * decay);
+    //     popOffset += normalize(delta + 1e-6) * ss(popRadius, 0., dist) * decay*decay * popPush;
+    // }
+    // paint = max(paint, pop);
 
     // expansion
     vec2 offset = vec2(0);
@@ -244,8 +282,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     spice.x += iTime;
     offset += vec2(cos(spice.x),sin(spice.x));
 
-    // explosion
-    offset += popOffset;
+    // explosion (see the shelved pop loop above)
+    // offset += popOffset;
 
     float step = min(iTimeDelta * referenceFps, maxStep);
     uv += strength * offset * step / aspect / 472.;
@@ -533,6 +571,8 @@ export default function LiquidToyBackground({
       timeDelta: uniform(bufferProgram, 'iTimeDelta'),
       mouse: uniform(bufferProgram, 'iMouse'),
       mousePrev: uniform(bufferProgram, 'iMousePrev'),
+      idleAge: uniform(bufferProgram, 'iIdleAge'),
+      pressAge: uniform(bufferProgram, 'iPressAge'),
       channel0: uniform(bufferProgram, 'iChannel0'),
       channel1: uniform(bufferProgram, 'iChannel1'),
       pops: uniform(bufferProgram, 'iPops[0]'),
@@ -654,12 +694,22 @@ export default function LiquidToyBackground({
     let previousTime = startTime
     const elapsed = () => (performance.now() - startTime) / 1000
 
-    // iMouse: xy in pixels with a bottom-left origin, z > 0 while "pressed".
-    // Hover stands in for the press so the blob tracks the cursor on a page.
+    // iMouse: xy in pixels with a bottom-left origin, z > 0 while pressed.
+    // The blob only tracks the cursor while the background is held down.
     const mouse = { x: canvas.width / 2, y: canvas.height / 2, active: 0 }
     // The pointer as of the last rendered frame. The stroke is swept between
     // the two, so it stays unbroken no matter how far the pointer moved.
     const mousePrev = { x: mouse.x, y: mouse.y }
+
+    // When the press currently driving the blob landed, so it can swell in.
+    let pressStartAt = 0
+    // Set while a click that was too short is being held open past its lift.
+    let pressLingering = false
+
+    // When the idle orbit starts (or started) spiralling out of the middle.
+    // Held in the future while the cooldown after a release runs down, so the
+    // background stays still until it arrives. Zero: it grows in on load.
+    let idleStartAt = 0
 
     // Ring buffer of recent clicks, read by the pop loop in Buffer A.
     const pops = new Float32Array(POP_COUNT * 4)
@@ -684,11 +734,24 @@ export default function LiquidToyBackground({
       strum.zone = -1
     }
 
-    const endDrag = (event: PointerEvent) => {
-      dragging = false
-      endStrum()
-      // A finger has no hover, so lifting it hands the blob back to the orbit.
-      if (event.pointerType !== 'mouse') mouse.active = 0
+    // Letting go hands the blob back to the orbit, but only once the cooldown
+    // has run down; pressing again restarts that wait from the next release.
+    const endPress = (at: number) => {
+      pressLingering = false
+      mouse.active = 0
+      idleStartAt = at + IDLE_RESUME_DELAY
+    }
+
+    const releaseBlob = () => {
+      if (!mouse.active || pressLingering) return
+      const now = elapsed()
+      // Too quick to swell: keep the blob where it landed for the rest of the
+      // minimum hold, and let the render loop finish the release.
+      if (now - pressStartAt < MIN_PRESS_HOLD) {
+        pressLingering = true
+        return
+      }
+      endPress(now)
     }
 
     // Touch drags scroll the page by default, which both moves the page and
@@ -716,32 +779,28 @@ export default function LiquidToyBackground({
       // pointer crosses the card on its way up or down.
       if (strum.active) strumTo(event.clientY, rect)
 
-      if (!followCursor) return
+      // A bare hover leaves the blob circling: the press in handlePointerDown
+      // is what hands it over, and this only steers it from there. A press
+      // being held open past its lift stays put.
+      if (!followCursor || !mouse.active || pressLingering) return
       const x = ((event.clientX - rect.left) / rect.width) * canvas.width
       const y = ((event.clientY - rect.top) / rect.height) * canvas.height
       if (x < 0 || y < 0 || x > canvas.width || y > canvas.height) {
-        mouse.active = 0
+        releaseBlob()
         return
-      }
-      // Re-entering the canvas must not sweep a stroke in from wherever the
-      // pointer was last seen.
-      if (!mouse.active) {
-        mousePrev.x = x
-        mousePrev.y = canvas.height - y
       }
       mouse.x = x
       // Flip: CSS grows downwards, gl_FragCoord grows upwards.
       mouse.y = canvas.height - y
-      mouse.active = 1
     }
 
-    // Falling back to the orbiting blob whenever the cursor is gone. Clearing
-    // the drag here too, so a pointer lost off-window cannot leave touch
+    // Ends a press however it finished: lifted, cancelled, or lost off-window.
+    // Clearing the drag here too, so a pointer that vanished cannot leave touch
     // scrolling suppressed.
     const releasePointer = () => {
-      mouse.active = 0
       dragging = false
       endStrum()
+      releaseBlob()
     }
     const handlePointerOut = (event: PointerEvent) => {
       if (!event.relatedTarget) releasePointer()
@@ -758,14 +817,17 @@ export default function LiquidToyBackground({
       if (x < 0 || y < 0 || x > rect.width || y > rect.height) return
 
       dragging = true
-      // A touch reports no position until it lands, so seed the stroke here or
-      // the first move sweeps in from wherever the pointer was last seen.
-      if (!mouse.active) {
+      // The press is what hands the blob over, so seed the stroke at the point
+      // of impact: without this it would sweep in from wherever it last was.
+      // A click landing on top of a lingering one takes it over from here.
+      if (followCursor && (!mouse.active || pressLingering)) {
         mouse.x = (x / rect.width) * canvas.width
         mouse.y = canvas.height - (y / rect.height) * canvas.height
         mousePrev.x = mouse.x
         mousePrev.y = mouse.y
         mouse.active = 1
+        pressLingering = false
+        pressStartAt = elapsed()
       }
 
       // Pop the fluid at the point of impact.
@@ -808,6 +870,13 @@ export default function LiquidToyBackground({
       gl.uniform3f(bufferUniforms.resolution, bufferWidth, bufferHeight, 1)
       gl.uniform1f(bufferUniforms.time, time)
       gl.uniform1f(bufferUniforms.timeDelta, timeDelta)
+      // A click held open past its lift lets go once it has had its swell.
+      if (pressLingering && time - pressStartAt >= MIN_PRESS_HOLD) endPress(time)
+
+      // Negative while the pointer holds the blob or the cooldown is still
+      // running, which is how Buffer A knows to paint nothing at all.
+      gl.uniform1f(bufferUniforms.idleAge, mouse.active ? -1 : time - idleStartAt)
+      gl.uniform1f(bufferUniforms.pressAge, time - pressStartAt)
       gl.uniform4f(bufferUniforms.mousePrev, mousePrev.x, mousePrev.y, mouse.active, 0)
       gl.uniform4f(bufferUniforms.mouse, mouse.x, mouse.y, mouse.active, 0)
       gl.uniform4fv(bufferUniforms.pops, pops)
@@ -869,8 +938,8 @@ export default function LiquidToyBackground({
 
     window.addEventListener('pointermove', handlePointerMove, { passive: true })
     window.addEventListener('pointerdown', handlePointerDown, { passive: true })
-    window.addEventListener('pointerup', endDrag, { passive: true })
-    window.addEventListener('pointercancel', endDrag, { passive: true })
+    window.addEventListener('pointerup', releasePointer, { passive: true })
+    window.addEventListener('pointercancel', releasePointer, { passive: true })
     // Not passive: this one has to be able to preventDefault.
     window.addEventListener('touchmove', handleTouchMove, { passive: false })
     window.addEventListener('pointerout', handlePointerOut)
@@ -886,8 +955,8 @@ export default function LiquidToyBackground({
       cancelAnimationFrame(animationFrame)
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerdown', handlePointerDown)
-      window.removeEventListener('pointerup', endDrag)
-      window.removeEventListener('pointercancel', endDrag)
+      window.removeEventListener('pointerup', releasePointer)
+      window.removeEventListener('pointercancel', releasePointer)
       window.removeEventListener('touchmove', handleTouchMove)
       window.removeEventListener('pointerout', handlePointerOut)
       window.removeEventListener('blur', releasePointer)

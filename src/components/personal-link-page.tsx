@@ -39,7 +39,10 @@ export default function Component() {
 
   return (
     <div
-      className={`min-h-screen relative overflow-hidden transition-colors duration-300 bg-neutral-300`}
+      // select-none: dragging the background paints the liquid, and a drag that
+      // also starts a text selection both highlights the page and hands Firefox
+      // a different repaint path, which costs the card its frosted backdrop.
+      className={`min-h-screen relative overflow-hidden select-none transition-colors duration-300 bg-neutral-300`}
     >
       <LiquidToyBackground />
       <ProfileCard
